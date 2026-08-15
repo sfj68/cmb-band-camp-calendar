@@ -65,6 +65,13 @@ A few consequences are worth knowing before editing this file:
   library's own inline `width`: these blocks are absolutely positioned, so simply
   clearing the width collapses them to shrink-to-fit.
 
+  The span width is written as `calc(N * 100% + (N-1) * 9px)`, never in pixels. A
+  block's own 100% is the column minus a fixed 9px gutter, so N columns is N boxes plus
+  the gutters between them. This matters because printing re-lays the page at a
+  different width: a pixel width measured on screen would span too far on a wide window
+  and not far enough on a narrow one, which is exactly what a bar covering "Drumline and
+  half of Guard" looks like.
+
 - **What counts as full band is decided by the data, not just the `full:` key.** If
   every track runs byte-identical text over an identical range, that is a full-band
   item and renders cardinal — Tuesday's lunch and dinner arrive as three track rows but

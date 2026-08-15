@@ -1237,10 +1237,30 @@ function spanSharedBlocks(columns, blocks){
 
     const first = placed[0].block;
     const last = placed[placed.length - 1].block;
-    const width = last.getBoundingClientRect().right - first.getBoundingClientRect().left;
-    if(!(width > 0)) return;
+    const count = placed.length;
 
-    first.style.setProperty("width", width + "px", "important");
+    // Express the width relative to the column, never in pixels. Printing
+    // re-lays the page at a different width, and a pixel width measured on
+    // screen would then span the wrong number of columns — too far on a wide
+    // window, not far enough on a narrow one.
+    //
+    // A block's own 100% is the column minus a fixed 9px gutter, so N columns
+    // is N boxes plus the N-1 gutters between them. The percentage part follows
+    // the column at any page size while the gutter stays put.
+    const box = first.offsetParent;
+    const pitch = columns.length > 1
+      ? columns[1].getBoundingClientRect().left - columns[0].getBoundingClientRect().left
+      : 0;
+    const gap = (box && pitch) ? pitch - box.getBoundingClientRect().width : 0;
+
+    if(gap > 0){
+      first.style.setProperty("width",
+        `calc(${count} * 100% + ${((count - 1) * gap).toFixed(2)}px)`, "important");
+    } else {
+      const width = last.getBoundingClientRect().right - first.getBoundingClientRect().left;
+      if(!(width > 0)) return;
+      first.style.setProperty("width", width + "px", "important");
+    }
     first.style.setProperty("z-index", "6", "important");   // paint over the columns it crosses
     first.classList.add("ev-span");
     placed.slice(1).forEach(x => x.block.style.setProperty("display", "none", "important"));
