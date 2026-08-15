@@ -104,11 +104,12 @@
   }
   .cal-scroll{overflow-x:auto;background:var(--white);
     border:1px solid var(--grid-line);box-shadow:0 1px 4px rgba(0,0,0,.12);}
-  /* Tuesday morning puts three concurrent items in the Winds column, so a
-     column has to stay wide enough to split into three readable lanes. Below
-     this the calendar scrolls sideways rather than compressing to the point
-     where single words break across lines. */
-  .clip{overflow:hidden;min-width:900px;}
+  /* A column has to stay wide enough to read — Tuesday morning splits the Winds
+     column into three concurrent lanes. Below that the calendar scrolls
+     sideways rather than compressing until single words break across lines.
+     The floor follows how many tracks are showing, so turning tracks off on a
+     phone brings the schedule down to something that fits the screen. */
+  .clip{overflow:hidden;min-width:var(--clip-min, 900px);}
   .cal{
     width: calc(var(--axis-w) + (100% - var(--axis-w)) * var(--col-scale));
     height: calc(var(--grid-h) + 44px);
@@ -219,11 +220,77 @@
 
   footer{text-align:center;font-size:11px;color:var(--muted);margin-top:14px;padding-bottom:16px;}
 
+  /* On a wide screen the help is simply always open and its summary is
+     pointless, so it is hidden. A phone collapses it — see the media query. */
+  .page-help > summary{display:none;}
+  .page-help[open] > summary{display:none;}
+
+  /* ---- phones ------------------------------------------------------------
+     The schedule is a wide time grid, so it will always scroll sideways on a
+     phone. What matters is that it starts near the top of the screen instead of
+     below a wall of chrome, and that each column stays wide enough to read. */
+  @media (max-width: 720px){
+    body{padding:9px;}
+    .toolbar{gap:8px;margin-bottom:8px;}
+    .daynav{width:100%;gap:6px;}
+    .daynav select{flex:1 1 auto;min-width:0;max-width:none;font-size:15px;padding:9px 8px;}
+    .daynav button{padding:9px 11px;font-size:13px;white-space:nowrap;}
+    .toggles{gap:7px 14px;font-size:13px;width:100%;}
+    .actions{width:100%;gap:6px;}
+    .actions button{flex:1 1 0;padding:10px 6px;font-size:13px;}
+
+    .page-help{
+      border:1px solid var(--gray-dark);border-radius:6px;
+      background:var(--white);margin-bottom:8px;
+    }
+    .page-help > summary{
+      display:list-item;cursor:pointer;padding:7px 10px;
+      font-size:12.5px;font-weight:bold;color:var(--cardinal);
+    }
+    .page-help[open] > summary{display:list-item;border-bottom:1px solid var(--gray);}
+    .page-help .save-note,.page-help .legend{margin:8px 10px;}
+
+    .day-title{font-size:14px;padding:8px 10px;line-height:1.25;}
+    /* Notes can run long; show the first lines and let a tap open the rest.
+       A plain max-height is used rather than line-clamp, which does not apply
+       reliably here, and the chevron is positioned so the clip cannot eat it. */
+    .day-note{
+      position:relative;cursor:pointer;
+      font-size:11.5px;line-height:1.35;padding:6px 26px 6px 10px;
+      /* Top padding plus whole lines only. Including the bottom padding would
+         leave the clip below the next line's start, showing a sliver of it. */
+      max-height:calc(6px + 3 * 1.35 * 11.5px);overflow:hidden;
+    }
+    .day-note::after{
+      content:"▾";position:absolute;right:9px;top:5px;
+      font-style:normal;font-size:12px;opacity:.7;
+    }
+    .day-note.expanded{max-height:none;}
+    .day-note.expanded::after{content:"▴";}
+
+    /* Momentum scrolling for the sideways swipe across tracks. */
+    .cal-scroll{-webkit-overflow-scrolling:touch;}
+    .editor-box{padding:16px 15px 14px;border-radius:14px;}
+    .ed-grid{grid-template-columns:repeat(2,1fr);gap:9px 12px;}
+    .ed-span2{grid-column:span 2;}
+    .ed-span4{grid-column:span 2;}
+    .ed-field textarea{min-height:96px;}
+    /* Comfortable touch targets: checkboxes and buttons big enough to hit. */
+    .ed-tracks{gap:12px 18px;margin:12px 2px 2px;}
+    .ed-tracks input{width:24px;height:24px;}
+    .ed-tracks label{padding:3px 0;}
+    .editor-actions{gap:7px;}
+    .editor-actions button{padding:13px 14px;font-size:14px;}
+    .editor-actions button.primary{padding:13px 22px;}
+    .toggles input{width:20px;height:20px;}
+    .toggles label{padding:2px 0;}
+  }
+
   /* ---- print ------------------------------------------------------------ */
   @page{size: letter portrait; margin: 0.35in;}
   @media print{
     :root{--grid-h: 810px;}
-    .toolbar,.legend,.save-note,.editor-overlay{display:none !important;}
+    .toolbar,.legend,.save-note,.editor-overlay,.page-help{display:none !important;}
     body{background:#fff;padding:0;}
     .wrap{max-width:none;}
     .day-pane{
@@ -237,7 +304,14 @@
     .toastui-calendar-panel.toastui-calendar-time{overflow:visible !important;height:auto !important;}
     .toastui-calendar-event-time .toastui-calendar-event-time-content{font-size:9.5px !important;}
     .day-title{font-size:15px;padding:7px;}
-    .day-note{font-size:10.5px;}
+    /* Undo the phone treatment, in case the print came from a phone: notes are
+       shown whole, with no clamp and no tap affordance. */
+    .day-note{
+      font-size:10.5px;max-height:none !important;overflow:visible !important;
+      padding:6px 12px !important;cursor:auto !important;
+    }
+    .day-note::after{content:"" !important;}
+    body.all-days .day-pane{margin-bottom:0 !important;}
     *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
   }
 </style>
@@ -265,6 +339,8 @@
     </div>
   </div>
 
+  <details id="pageHelp" class="page-help">
+    <summary>Legend &amp; tips</summary>
   <div class="save-note"><span id="editHint"></span> Use the checkboxes above to show/hide a track; Leadership is its own separate calendar, off by default. Printing includes every day, one per page, using your current column selections.</div>
 
   <div class="legend">
@@ -275,6 +351,7 @@
     <span><span class="swatch" style="background:#fff;border-left:4px solid #5B6472;"></span>Leadership</span>
     <span><span class="swatch" style="background:#FFC836;"></span>Shared by two tracks (the third differs)</span>
   </div>
+  </details>
 
   <div id="daysContainer"></div>
 
@@ -1048,6 +1125,9 @@ function createCalendars(){
 function rebuildEvents(){
   const visible = visibleColumns();
   document.documentElement.style.setProperty("--col-scale", String(5 / Math.max(1, visible.length)));
+  // Narrowest the calendar may get before it starts scrolling sideways: the
+  // time axis plus a readable width per visible track.
+  document.documentElement.style.setProperty("--clip-min", (72 + visible.length * 200) + "px");
   const names = dayNamesFor(visible);
   calendars.forEach((cal, i) => {
     cal.setOptions({week: {dayNames: names}});
@@ -1074,7 +1154,11 @@ const CAL_CHROME_H = 46;  // day-name row plus the container's borders
 // camp on the page you are scrolling regardless, so every day keeps the same
 // baseline density instead of each one stretching to a screen.
 function applyGridHeight(){
-  if(viewMode === "all"){
+  // On a phone a whole camp day was never going to fit a screen, and squeezing
+  // toward one costs the tightest blocks their text — a 30-minute item sharing
+  // its column three ways is only 20px tall at that height. Keep the readable
+  // density and let the page scroll, which it would anyway.
+  if(viewMode === "all" || isNarrow()){
     document.documentElement.style.setProperty("--grid-h", GRID_BASE_H + "px");
   } else {
     fitGridHeight();
@@ -1220,7 +1304,7 @@ function growClippedEvents(pane){
       // column with two all-morning windows. Step the type down and tighten the
       // leading rather than cut the text off; overlapping the next block is not
       // an option.
-      for(const [size, lineHeight] of [[10.5, 1.2], [9.5, 1.15], [8.5, 1.1], [7.5, 1.05]]){
+      for(const [size, lineHeight] of [[10.5, 1.2], [9.5, 1.15], [8.5, 1.1], [7.5, 1.05], [7, 1.0]]){
         if(content.scrollHeight <= block.clientHeight + 2) break;
         content.style.setProperty("font-size", size + "px", "important");
         content.style.setProperty("line-height", String(lineHeight), "important");
@@ -1533,10 +1617,32 @@ function deleteEditing(){
 // ---------------------------------------------------------------------------
 // BOOT
 // ---------------------------------------------------------------------------
+const NARROW = "(max-width: 720px)";
+const isNarrow = () => window.matchMedia(NARROW).matches;
+
+// On a phone the legend and tips are collapsed so the schedule starts near the
+// top of the screen; on anything wider they are simply always shown.
+function syncHelpDisclosure(){
+  const help = document.getElementById("pageHelp");
+  if(help) help.open = !isNarrow();
+}
+
+// Day notes run long — Tuesday's is a paragraph. On a phone they are clamped to
+// a couple of lines and open on tap.
+function wireDayNotes(){
+  document.querySelectorAll(".day-note").forEach(note => {
+    note.addEventListener("click", () => {
+      if(isNarrow()) note.classList.toggle("expanded");
+    });
+  });
+}
+
 function init(){
   STORE = loadStore();
   fillDaySelect();
   createCalendars();
+  syncHelpDisclosure();
+  wireDayNotes();
   rebuildEvents();
   showDay(0);
 
@@ -1582,7 +1688,11 @@ function init(){
   let resizeTimer = null;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { applyGridHeight(); schedulePostRender(); }, 150);
+    resizeTimer = setTimeout(() => {
+      syncHelpDisclosure();
+      applyGridHeight();
+      schedulePostRender();
+    }, 150);
   });
   document.getElementById("btnReset").addEventListener("click", () => {
     if(confirm("Reset all edits and restore the original schedule text? This cannot be undone.")){

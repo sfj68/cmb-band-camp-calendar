@@ -111,6 +111,26 @@ A few consequences are worth knowing before editing this file:
 
 - The print stylesheet pins **portrait**; a 7 AM–11 PM grid does not fit landscape.
 
+### On a phone
+
+A three-track time grid cannot fit a phone screen, so the schedule scrolls
+sideways. Everything else is arranged around getting to it quickly:
+
+- The legend and tips collapse into a **Legend & tips** disclosure, and day notes
+  clamp to three lines and open on tap. Together these take the space above the
+  calendar from roughly 510px to 300px on a 375px-wide screen.
+- The calendar's minimum width follows how many tracks are showing — the time axis
+  plus 200px a track. With all three it scrolls sideways; **turn two off and the
+  schedule fits the screen exactly**, which is the way to read one section's day on
+  a phone.
+- The grid keeps its full density rather than shrinking toward the viewport. A whole
+  camp day was never going to fit a phone screen, and squeezing toward one costs the
+  tightest blocks their text.
+- Checkboxes and buttons are enlarged for touch.
+
+Printing resets all of this, so printing from a phone still produces the same pages
+as printing from a laptop.
+
 ### The edit password is a guard, not a lock
 
 **It is not security, and it is not meant to be.** This is a public static page, so
