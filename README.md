@@ -25,9 +25,10 @@ needed — nothing here starts with an underscore.
 - **Day navigation** — prev/next buttons and a day dropdown.
 - **Track toggles** — show or hide Drumline, Guard, Winds. Leadership is a separate
   calendar, off by default.
-- **Click any block to edit its text.** Edits save to `localStorage` in that browser
-  only — nothing syncs between viewers.
-- **Reset to Original** clears all edits.
+- **Click any block to edit it** — name, day, start and end time, details, and which
+  tracks it applies to. **+ New Event** adds one from scratch; **Delete** removes it.
+  Changes save to `localStorage` in that browser only — nothing syncs between viewers.
+- **Reset to Original** clears every change and restores the published schedule.
 - **Print** emits all eight days, one per page, at 8.5×11.
 
 ## How it works
@@ -79,6 +80,29 @@ A few consequences are worth knowing before editing this file:
   would silently revert on reload.
 
 - The print stylesheet pins **portrait**; a 7 AM–11 PM grid does not fit landscape.
+
+### Edits live in an overlay, not in the schedule
+
+`DAYS` stays the source of truth and keeps flowing through the pipeline untouched.
+Everything the user does lands in a separate overlay in `localStorage`
+(`cmb_band_camp_calendar_v3`), which is why **Reset to Original** can restore the
+schedule exactly:
+
+- **overrides** — keyed by the event's edit key. A record carrying a `start` is
+  *pinned*: the user gave it explicit times and tracks, so the derived event is
+  suppressed and the block is rebuilt from the record instead. A record with only a
+  title or details is a plain text edit and stays in the pipeline, so merging and
+  cross-track matching still apply.
+- **custom** — events added outright.
+- **deleted** — edit keys removed from the schedule.
+
+A pinned or custom event deliberately sits outside the merge and cross-track passes.
+The user stated exactly what they wanted, so nothing should quietly absorb or reshape
+it. Its colour still follows the same rule as the derived schedule: all three tracks is
+full band and renders cardinal, two of three renders gold, one gets that track's colour.
+
+Because the editor is prefilled from what is actually on the grid, saving an event
+without changing anything leaves the schedule looking identical.
 
 ### Schedule data
 

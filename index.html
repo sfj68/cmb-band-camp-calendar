@@ -68,6 +68,10 @@
     padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;
   }
   .actions button:hover{background:#eee;}
+  .actions button.accent{
+    background:var(--cardinal);color:#fff;border-color:var(--cardinal);font-weight:bold;
+  }
+  .actions button.accent:hover{background:var(--secondary);}
   .save-note{font-size:11.5px;color:var(--muted);font-style:italic;margin-bottom:10px;}
 
   .legend{font-size:11.5px;color:var(--muted);margin:8px 0 10px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
@@ -138,6 +142,8 @@
   }
   .ev-full .toastui-calendar-event-time-content{font-weight:bold !important;}
   .ev-super .toastui-calendar-event-time-content{font-weight:bold !important;}
+  /* Details sit under the title in lighter type, so the name still leads. */
+  .ev-details{display:block;font-weight:normal;font-size:.92em;opacity:.82;margin-top:1px;}
 
   /* ---- inline editor ---------------------------------------------------- */
   .editor-overlay{
@@ -146,22 +152,55 @@
   }
   .editor-overlay.open{display:flex;}
   .editor-box{
-    background:#fff;color:var(--dark);border-radius:8px;padding:16px;
-    width:min(560px,100%);box-shadow:0 8px 28px rgba(0,0,0,.3);
+    background:var(--cardinal);color:#fff;border-radius:18px;
+    padding:22px 26px 18px;width:min(760px,100%);
+    max-height:calc(100vh - 32px);overflow-y:auto;
+    box-shadow:0 10px 34px rgba(0,0,0,.42);
   }
-  .editor-box h3{margin:0 0 2px;font-size:15px;color:var(--cardinal);}
-  .editor-when{font-size:12px;color:var(--muted);margin-bottom:10px;}
-  .editor-box textarea{
-    width:100%;min-height:120px;font-family:inherit;font-size:13px;
-    padding:8px;border:1px solid #999;border-radius:5px;resize:vertical;
-    color:var(--dark);background:#fff;
-  }
-  .editor-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}
-  .editor-actions button{
-    padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;border:1px solid #999;
+  .editor-box h3{margin:0 0 14px;font-size:17px;color:#fff;font-weight:bold;}
+
+  .ed-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 20px;}
+  .ed-span2{grid-column:span 2;}
+  .ed-span4{grid-column:span 4;}
+  .ed-field{display:flex;flex-direction:column;gap:5px;font-size:14px;color:#fff;}
+  .ed-field input, .ed-field select, .ed-field textarea{
+    font-family:inherit;font-size:14px;
+    border:none;border-radius:999px;padding:9px 14px;
     background:#fff;color:var(--dark);
+    width:100%;
   }
-  .editor-actions button.primary{background:var(--cardinal);color:#fff;border-color:var(--cardinal);font-weight:bold;}
+  .ed-field textarea{border-radius:14px;resize:vertical;min-height:130px;line-height:1.35;}
+  .ed-field input:focus, .ed-field select:focus, .ed-field textarea:focus{
+    outline:3px solid var(--gold);outline-offset:1px;
+  }
+
+  .ed-tracks{
+    display:flex;flex-wrap:wrap;gap:10px 26px;align-items:center;
+    margin:16px 2px 4px;font-size:14px;
+  }
+  .ed-tracks label{display:flex;align-items:center;gap:7px;cursor:pointer;color:#fff;}
+  .ed-tracks input{width:19px;height:19px;accent-color:var(--gold);cursor:pointer;}
+
+  .ed-error{
+    min-height:17px;margin:6px 2px 0;font-size:12.5px;font-weight:bold;
+    color:var(--gold);
+  }
+
+  .editor-actions{display:flex;gap:8px;align-items:center;margin-top:6px;}
+  .ed-spacer{flex:1;}
+  .editor-actions button{
+    padding:9px 20px;border-radius:999px;cursor:pointer;font-size:14px;
+    border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;
+  }
+  .editor-actions button:hover{background:rgba(255,255,255,.14);}
+  /* Gold action on cardinal, with deep-cardinal text — never black on gold. */
+  .editor-actions button.primary{
+    background:var(--gold);color:var(--dark);border-color:var(--gold);
+    font-weight:bold;padding:9px 30px;
+  }
+  .editor-actions button.primary:hover{background:#F2B81F;}
+  .editor-actions button.danger{border-color:rgba(255,255,255,.4);opacity:.85;}
+  .editor-actions button.danger[hidden]{display:none;}
 
   footer{text-align:center;font-size:11px;color:var(--muted);margin-top:14px;padding-bottom:16px;}
 
@@ -204,12 +243,13 @@
       <label><input type="checkbox" id="tg-leadership">Leadership calendar</label>
     </div>
     <div class="actions">
+      <button type="button" id="btnNew" class="accent">+ New Event</button>
       <button type="button" id="btnPrint">Print (all days)</button>
       <button type="button" id="btnReset">Reset to Original</button>
     </div>
   </div>
 
-  <div class="save-note">Click any block to edit its text. Edits autosave in this browser only. Use the checkboxes to show/hide a track; Leadership is its own separate calendar, off by default. Printing includes every day, one per page, using your current column selections.</div>
+  <div class="save-note">Click any block to edit its name, day, times, details and tracks — or use <strong>+ New Event</strong> to add one. Changes autosave in this browser only, and <strong>Reset to Original</strong> puts the published schedule back. Use the checkboxes above to show/hide a track; Leadership is its own separate calendar, off by default. Printing includes every day, one per page, using your current column selections.</div>
 
   <div class="legend">
     <span><span class="swatch" style="background:#A61932;"></span>Full band / everyone together</span>
@@ -226,11 +266,35 @@
 </div>
 
 <div class="editor-overlay" id="editorOverlay">
-  <div class="editor-box">
-    <h3 id="editorTitle">Edit block</h3>
-    <div class="editor-when" id="editorWhen"></div>
-    <textarea id="editorText"></textarea>
+  <div class="editor-box" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+    <h3 id="editorTitle">Edit event</h3>
+    <div class="ed-grid">
+      <label class="ed-field ed-span2">Event
+        <input type="text" id="edTitle" autocomplete="off">
+      </label>
+      <label class="ed-field ed-span2">Date
+        <select id="edDay"></select>
+      </label>
+      <label class="ed-field ed-span2">Start Time
+        <input type="time" id="edStart" step="300">
+      </label>
+      <label class="ed-field ed-span2">End Time
+        <input type="time" id="edEnd" step="300">
+      </label>
+      <label class="ed-field ed-span4">Details
+        <textarea id="edDetails" rows="5"></textarea>
+      </label>
+    </div>
+    <div class="ed-tracks">
+      <label><input type="checkbox" id="ed-drumline">Drumline</label>
+      <label><input type="checkbox" id="ed-guard">Guard</label>
+      <label><input type="checkbox" id="ed-winds">Winds</label>
+      <label><input type="checkbox" id="ed-leadership">Leadership</label>
+    </div>
+    <p class="ed-error" id="edError" role="alert"></p>
     <div class="editor-actions">
+      <button type="button" id="edDelete" class="danger">Delete</button>
+      <span class="ed-spacer"></span>
       <button type="button" id="editorCancel">Cancel</button>
       <button type="button" class="primary" id="editorSave">Save</button>
     </div>
@@ -377,7 +441,8 @@ const GRID_START = 7 * 60;      // 7:00 AM — must match week.hourStart
 const GRID_END   = 23 * 60;     // 11:00 PM — must match week.hourEnd
 const BANNER_MIN = 20;          // compact full-band banner, expressed in minutes
 const MIN_EVENT_MIN = 15;       // never shrink a track block below this
-const STORAGE_KEY = "cmb_band_camp_calendar_edits_v2";
+const STORAGE_KEY = "cmb_band_camp_calendar_v3";
+const LEGACY_STORAGE_KEY = "cmb_band_camp_calendar_edits_v2";
 const BASE = new Date(2000, 0, 3);   // a Monday, far from any real date
 
 const TRACKS = [
@@ -464,23 +529,67 @@ function weekStartFor(dayIndex){
 // PERSISTENCE — edits are keyed so that the three duplicated copies of a
 // full-band bar (and both halves of a superblock) always stay in agreement.
 // ---------------------------------------------------------------------------
-function loadEdits(){
-  try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
-  catch(err){ console.warn("Autosave unavailable in this browser/context.", err); return {}; }
+// The schedule in DAYS stays the source of truth and keeps flowing through the
+// pipeline above. Everything the user does lands in a separate overlay:
+//
+//   overrides  editKey -> record. A record carrying `start` is *pinned*: the
+//              user gave it explicit times and tracks, so the derived event is
+//              suppressed and rebuilt from the record. A record with only
+//              title/details is a plain text edit and stays in the pipeline,
+//              so merging and cross-track matching still apply to it.
+//   custom     events the user added outright.
+//   deleted    editKeys removed from the schedule.
+//
+// Keeping the two apart means an edit can never corrupt the derived schedule —
+// clearing the overlay restores it exactly.
+const EMPTY_STORE = {overrides:{}, custom:[], deleted:[]};
+let STORE = {overrides:{}, custom:[], deleted:[]};
+
+function normalizeStore(o){
+  return {
+    overrides: (o && o.overrides) || {},
+    custom: (o && Array.isArray(o.custom)) ? o.custom : [],
+    deleted: (o && Array.isArray(o.deleted)) ? o.deleted : [],
+  };
 }
-function saveEdit(editKey, text){
+function loadStore(){
   try{
-    const store = loadEdits();
-    store[editKey] = text;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-  }catch(err){ console.warn("Autosave unavailable in this browser/context.", err); }
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return normalizeStore(JSON.parse(raw));
+    // Carry across the older text-only edits as title overrides.
+    const legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) || "{}");
+    const store = normalizeStore(null);
+    Object.keys(legacy).forEach(k => { store.overrides[k] = {title: legacy[k]}; });
+    return store;
+  }catch(err){
+    console.warn("Saved changes unavailable in this browser/context.", err);
+    return normalizeStore(null);
+  }
+}
+function persistStore(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(STORE)); }
+  catch(err){ console.warn("Could not save changes in this browser/context.", err); }
 }
 function clearEdits(){
-  try{ localStorage.removeItem(STORAGE_KEY); }catch(err){}
+  STORE = normalizeStore(null);
+  try{
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+  }catch(err){}
 }
+
 function textFor(editKey, original){
-  const edits = loadEdits();
-  return Object.prototype.hasOwnProperty.call(edits, editKey) ? edits[editKey] : original;
+  const ov = STORE.overrides[editKey];
+  return (ov && ov.title != null) ? ov.title : original;
+}
+function detailsFor(editKey){
+  const ov = STORE.overrides[editKey];
+  return (ov && ov.details) ? ov.details : "";
+}
+// A pinned or deleted event no longer comes from the pipeline.
+function isSuppressed(editKey){
+  const ov = STORE.overrides[editKey];
+  return STORE.deleted.indexOf(editKey) >= 0 || !!(ov && ov.start != null);
 }
 
 // ---------------------------------------------------------------------------
@@ -523,7 +632,12 @@ function mkEvent(o){
     borderColor: st.borderColor,
     color: st.color,
     customStyle: st.customStyle,
-    raw: {editKey:o.editKey, kind:o.kind, slotStart:o.slotStart, slotEnd:o.slotEnd},
+    // Everything the editor needs to reopen this event exactly as shown.
+    raw: {
+      editKey:o.editKey, kind:o.kind, slotStart:o.slotStart, slotEnd:o.slotEnd,
+      dayIndex:o.dayIndex, start:o.start, end:o.end,
+      details:o.details || "", tracks:o.tracks || [], custom:!!o.custom,
+    },
   };
 }
 
@@ -565,12 +679,14 @@ function buildDayEvents(dayIndex, visible){
       const end = (fi === fulls.length - 1 && !compact) ? slot.end : Math.min(start + share, slot.end);
       if(end <= start) return;
       const editKey = `d${dayIndex}-s${si}-f${fi}`;
+      if(isSuppressed(editKey)) return;
       const title = textFor(editKey, f.full);
       visibleTracks.forEach(v => {
         events.push(mkEvent({
           id: `${editKey}-${v.key}`, editKey, title, kind: compact ? "banner" : "full",
           dayIndex, offset: v.offset, start, end,
           slotStart: slot.start, slotEnd: slot.end,
+          details: detailsFor(editKey), tracks: TRACK_KEYS.slice(),
         }));
       });
     });
@@ -631,6 +747,7 @@ function buildDayEvents(dayIndex, visible){
         merged.push({...ev});
       }
     });
+    merged.forEach(ev => { ev.trackKey = key; });
     mergedByTrack[key] = merged;
   });
 
@@ -654,9 +771,11 @@ function buildDayEvents(dayIndex, visible){
     // sharing an activity while the third runs its own — stays gold.
     const everyTrack = group.length === TRACK_KEYS.length;
     const shared = `d${dayIndex}-grp-${group[0].start}-${group[0].end}`;
+    const groupTracks = group.map(g => g.trackKey);
     group.forEach(ev => {
       ev.matchKind = everyTrack ? "full" : "super";
       ev.editKey = shared;   // one edit updates every copy, as for full-band rows
+      ev.groupTracks = groupTracks;
     });
   });
 
@@ -666,6 +785,7 @@ function buildDayEvents(dayIndex, visible){
     mergedByTrack[track.key].forEach(ev => {
       const start = ev.start, end = ev.end;
       if(end <= start) return;
+      if(isSuppressed(ev.editKey)) return;
       const title = textFor(ev.editKey, ev.text);
       // A matched event shares its edit key across tracks, so its id has to
       // carry the track to stay unique — same shape as the full-band copies.
@@ -675,6 +795,7 @@ function buildDayEvents(dayIndex, visible){
         kind: ev.matchKind || "track", accent: track.accent,
         dayIndex, offset: offsetOf[track.key], start, end,
         slotStart: ev.start, slotEnd: ev.end,
+        details: detailsFor(ev.editKey), tracks: ev.groupTracks || [track.key],
       }));
     });
   });
@@ -691,16 +812,66 @@ function buildDayEvents(dayIndex, visible){
         const end = (explicitEnd && explicitEnd > slot.start) ? Math.min(explicitEnd, GRID_END) : slot.end;
         if(end <= slot.start) return;
         const editKey = `d${dayIndex}-lead-s${si}-r${ri}`;
+        if(isSuppressed(editKey)) return;
         events.push(mkEvent({
           id: editKey, editKey, title: textFor(editKey, r.event), kind:"track",
           accent: LEADERSHIP.accent, dayIndex, offset: offsetOf.leadership,
           start: slot.start, end, slotStart: slot.start, slotEnd: end,
+          details: detailsFor(editKey), tracks: ["leadership"],
         }));
       });
     });
   }
 
+  // ---- pinned edits and user-added events ---------------------------------
+  events.push(...buildOverlayEvents(dayIndex, visible));
+
   return events;
+}
+
+// An event the user gave explicit times and tracks — whether edited or created
+// outright — is rendered straight from its record. It deliberately sits outside
+// the merge and cross-track passes: the user said exactly what they wanted, so
+// nothing should quietly absorb or reshape it.
+function eventsForRecord(rec, editKey, visible, isCustom){
+  const tracks = Array.isArray(rec.tracks) ? rec.tracks : [];
+  const bandTracks = tracks.filter(t => t !== "leadership");
+  // Same rule the derived schedule uses: every track means full band, two of
+  // three means a shared gold block, one means that track's own colour.
+  const bandKind = bandTracks.length === TRACK_KEYS.length ? "full"
+                 : bandTracks.length >= 2 ? "super" : "track";
+  const out = [];
+  visible.forEach(col => {
+    if(tracks.indexOf(col.key) < 0) return;
+    const isLead = col.key === "leadership";
+    out.push(mkEvent({
+      id: `${editKey}-${col.key}`, editKey,
+      title: rec.title || "(untitled)", details: rec.details || "",
+      kind: isLead ? "track" : bandKind, accent: col.accent,
+      dayIndex: rec.dayIndex, offset: col.offset,
+      start: rec.start, end: rec.end,
+      slotStart: rec.start, slotEnd: rec.end,
+      tracks, custom: isCustom,
+    }));
+  });
+  return out;
+}
+
+function buildOverlayEvents(dayIndex, visible){
+  const out = [];
+  Object.keys(STORE.overrides).forEach(editKey => {
+    const rec = STORE.overrides[editKey];
+    if(!rec || rec.start == null) return;                  // text-only edit
+    if(rec.dayIndex !== dayIndex) return;
+    if(STORE.deleted.indexOf(editKey) >= 0) return;
+    out.push(...eventsForRecord(rec, editKey, visible, false));
+  });
+  STORE.custom.forEach(rec => {
+    if(rec.dayIndex !== dayIndex) return;
+    if(STORE.deleted.indexOf(rec.id) >= 0) return;
+    out.push(...eventsForRecord(rec, rec.id, visible, true));
+  });
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -810,7 +981,12 @@ function createCalendars(){
       },
       calendars: [{id:"cmb", name:"CMB Band Camp"}],
       template: {
-        time(ev){ return escapeHtml(ev.title).replace(/\n/g, "<br>"); },
+        time(ev){
+          const line = s => escapeHtml(s).replace(/\n/g, "<br>");
+          const details = ev.raw && ev.raw.details;
+          return line(ev.title) +
+            (details ? `<span class="ev-details">${line(details)}</span>` : "");
+        },
       },
     });
     cal.setDate(weekStartFor(i));
@@ -968,34 +1144,142 @@ function showDay(i){
 // ---------------------------------------------------------------------------
 let editing = null;
 
+const EDITOR_TRACK_KEYS = [...TRACK_KEYS, "leadership"];
+const toTimeField = mins =>
+  String(Math.floor(mins / 60)).padStart(2, "0") + ":" + String(mins % 60).padStart(2, "0");
+const fromTimeField = value => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value || "");
+  return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : null;
+};
+
+function fillDaySelect(){
+  const sel = document.getElementById("edDay");
+  if(sel.options.length) return;
+  DAYS.forEach((day, i) => {
+    const o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = day.title.split(" — ")[0];
+    sel.appendChild(o);
+  });
+}
+
+function setEditorFields({title, details, dayIndex, start, end, tracks}){
+  fillDaySelect();
+  document.getElementById("edTitle").value = title || "";
+  document.getElementById("edDetails").value = details || "";
+  document.getElementById("edDay").value = String(dayIndex);
+  document.getElementById("edStart").value = toTimeField(start);
+  document.getElementById("edEnd").value = toTimeField(end);
+  EDITOR_TRACK_KEYS.forEach(k => {
+    document.getElementById("ed-" + k).checked = tracks.indexOf(k) >= 0;
+  });
+  document.getElementById("edError").textContent = "";
+}
+
+// Open an existing block. The fields show exactly what is on the grid, so
+// saving without changing anything leaves the schedule looking identical.
 function openEditor(event){
   const raw = event.raw || {};
-  editing = {editKey: raw.editKey, title: event.title};
-  document.getElementById("editorWhen").textContent =
-    (raw.slotStart != null && raw.slotEnd != null)
-      ? fmtTime(raw.slotStart) + " – " + fmtTime(raw.slotEnd)
-      : "";
-  const ta = document.getElementById("editorText");
-  ta.value = event.title;
+  editing = {editKey: raw.editKey, isNew: false, isCustom: !!raw.custom};
+  document.getElementById("editorTitle").textContent = "Edit event";
+  document.getElementById("edDelete").hidden = false;
+  setEditorFields({
+    title: event.title,
+    details: raw.details || "",
+    dayIndex: raw.dayIndex != null ? raw.dayIndex : currentDay,
+    start: raw.start != null ? raw.start : GRID_START,
+    end: raw.end != null ? raw.end : GRID_START + 60,
+    tracks: (raw.tracks && raw.tracks.length) ? raw.tracks : [],
+  });
+  showEditor("edTitle");
+}
+
+function openNewEvent(){
+  editing = {editKey: null, isNew: true, isCustom: true};
+  document.getElementById("editorTitle").textContent = "New event";
+  document.getElementById("edDelete").hidden = true;
+  setEditorFields({
+    title: "", details: "", dayIndex: currentDay,
+    start: 12 * 60, end: 13 * 60, tracks: TRACK_KEYS.slice(),
+  });
+  showEditor("edTitle");
+}
+
+function showEditor(focusId){
   document.getElementById("editorOverlay").classList.add("open");
-  ta.focus();
-  ta.setSelectionRange(ta.value.length, ta.value.length);
+  const el = document.getElementById(focusId);
+  el.focus();
+  if(el.setSelectionRange && el.type === "text") el.setSelectionRange(el.value.length, el.value.length);
 }
 function closeEditor(){
   document.getElementById("editorOverlay").classList.remove("open");
   editing = null;
 }
+
+function readEditorFields(){
+  const fail = msg => { document.getElementById("edError").textContent = msg; return null; };
+  const title = document.getElementById("edTitle").value.trim();
+  if(!title) return fail("Give the event a name.");
+
+  const start = fromTimeField(document.getElementById("edStart").value);
+  const end = fromTimeField(document.getElementById("edEnd").value);
+  if(start == null || end == null) return fail("Enter both a start and an end time.");
+  if(end <= start) return fail("The end time has to be after the start time.");
+  if(start < GRID_START || end > GRID_END)
+    return fail(`The calendar only runs ${fmtTime(GRID_START)} to ${fmtTime(GRID_END)}.`);
+
+  const tracks = EDITOR_TRACK_KEYS.filter(k => document.getElementById("ed-" + k).checked);
+  if(!tracks.length) return fail("Pick at least one track.");
+
+  return {
+    title, details: document.getElementById("edDetails").value.trim(),
+    dayIndex: parseInt(document.getElementById("edDay").value, 10),
+    start, end, tracks,
+  };
+}
+
 function commitEditor(){
-  if(!editing || !editing.editKey){ closeEditor(); return; }
-  saveEdit(editing.editKey, document.getElementById("editorText").value);
+  if(!editing) return;
+  const rec = readEditorFields();
+  if(!rec) return;
+  if(editing.isNew){
+    rec.id = "custom-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
+    STORE.custom.push(rec);
+  } else if(editing.isCustom){
+    const i = STORE.custom.findIndex(c => c.id === editing.editKey);
+    if(i >= 0) STORE.custom[i] = {...rec, id: editing.editKey};
+  } else {
+    STORE.overrides[editing.editKey] = rec;   // pins it out of the derived pipeline
+  }
+  persistStore();
+  const day = rec.dayIndex;
   closeEditor();
-  rebuildEvents();   // every copy sharing this edit key updates together
+  rebuildEvents();
+  showDay(day);                                // follow the event if it moved days
+}
+
+function deleteEditing(){
+  if(!editing || editing.isNew){ closeEditor(); return; }
+  if(!confirm("Remove this event from the schedule?")) return;
+  const i = STORE.custom.findIndex(c => c.id === editing.editKey);
+  if(i >= 0){
+    STORE.custom.splice(i, 1);
+  } else {
+    if(STORE.deleted.indexOf(editing.editKey) < 0) STORE.deleted.push(editing.editKey);
+    delete STORE.overrides[editing.editKey];
+  }
+  persistStore();
+  closeEditor();
+  rebuildEvents();
+  showDay(currentDay);
 }
 
 // ---------------------------------------------------------------------------
 // BOOT
 // ---------------------------------------------------------------------------
 function init(){
+  STORE = loadStore();
+  fillDaySelect();
   createCalendars();
   rebuildEvents();
   showDay(0);
@@ -1035,8 +1319,10 @@ function init(){
     }
   });
 
+  document.getElementById("btnNew").addEventListener("click", openNewEvent);
   document.getElementById("editorCancel").addEventListener("click", closeEditor);
   document.getElementById("editorSave").addEventListener("click", commitEditor);
+  document.getElementById("edDelete").addEventListener("click", deleteEditing);
   document.getElementById("editorOverlay").addEventListener("click", e => {
     if(e.target.id === "editorOverlay") closeEditor();
   });
