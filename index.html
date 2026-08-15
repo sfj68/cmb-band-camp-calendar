@@ -90,6 +90,9 @@
     visibility:hidden;pointer-events:none;
   }
   .day-pane.is-current{position:static;visibility:visible;pointer-events:auto;}
+  /* Every day in flow at once, with air between them so the days read apart. */
+  body.all-days .day-pane{margin-bottom:30px;}
+  body.all-days .day-pane:last-child{margin-bottom:0;}
 
   .day-title{
     background:var(--cardinal);color:#fff;font-size:18px;font-weight:bold;
@@ -948,6 +951,8 @@ const THEME = {
 
 const calendars = [];   // index-aligned with DAYS
 let currentDay = 0;
+let viewMode = "day";               // "day" = one at a time, "all" = whole camp
+const ALL_DAYS_VALUE = "all";
 
 function visibleColumns(){
   const cols = TRACKS.filter(t => document.getElementById("tg-" + t.key).checked).map(t => ({...t}));
@@ -969,6 +974,11 @@ function createCalendars(){
   const select = document.getElementById("daySelect");
   container.innerHTML = "";
   select.innerHTML = "";
+
+  const allOption = document.createElement("option");
+  allOption.value = ALL_DAYS_VALUE;
+  allOption.textContent = "Full Calendar — all 8 days";
+  select.appendChild(allOption);
 
   DAYS.forEach((day, i) => {
     const pane = document.createElement("div");
@@ -1057,7 +1067,19 @@ function rebuildEvents(){
 // fit pass will use. 640 leaves a little margin for font differences.
 const GRID_MIN_H = 640;
 const GRID_MAX_H = 2400;
+const GRID_BASE_H = 896;  // the density used when every day is on the page at once
 const CAL_CHROME_H = 46;  // day-name row plus the container's borders
+
+// Fitting to the window only makes sense for one day at a time. With the whole
+// camp on the page you are scrolling regardless, so every day keeps the same
+// baseline density instead of each one stretching to a screen.
+function applyGridHeight(){
+  if(viewMode === "all"){
+    document.documentElement.style.setProperty("--grid-h", GRID_BASE_H + "px");
+  } else {
+    fitGridHeight();
+  }
+}
 
 function fitGridHeight(){
   const pane = document.getElementById("pane-" + currentDay);
@@ -1273,21 +1295,34 @@ function spanSharedBlocks(columns, blocks){
 // ---------------------------------------------------------------------------
 // NAV / TOGGLES
 // ---------------------------------------------------------------------------
-function showDay(i){
-  currentDay = Math.max(0, Math.min(DAYS.length - 1, i));
+function applyView(){
+  const all = viewMode === "all";
   DAYS.forEach((_, idx) => {
-    const pane = document.getElementById("pane-" + idx);
-    pane.classList.toggle("is-current", idx === currentDay);
+    document.getElementById("pane-" + idx).classList.toggle("is-current", all || idx === currentDay);
   });
-  document.getElementById("daySelect").value = String(currentDay);
-  document.getElementById("prevDay").disabled = currentDay === 0;
-  document.getElementById("nextDay").disabled = currentDay === DAYS.length - 1;
-  // The pane was parked off-screen; make it re-measure now that it is in flow.
-  calendars[currentDay].render();
+  document.body.classList.toggle("all-days", all);
+  document.getElementById("daySelect").value = all ? ALL_DAYS_VALUE : String(currentDay);
+  document.getElementById("prevDay").disabled = all || currentDay === 0;
+  document.getElementById("nextDay").disabled = all || currentDay === DAYS.length - 1;
+
   // Day titles and notes wrap to different heights, which moves where the grid
-  // starts, so the fit is recomputed whenever the visible day changes.
-  fitGridHeight();
+  // starts, so the height is settled before anything is measured.
+  applyGridHeight();
+  // Panes were parked out of flow; make them re-measure now that they are in it.
+  if(all) calendars.forEach(cal => cal.render());
+  else calendars[currentDay].render();
   schedulePostRender();
+}
+
+function showDay(i){
+  viewMode = "day";
+  currentDay = Math.max(0, Math.min(DAYS.length - 1, i));
+  applyView();
+}
+
+function showAllDays(){
+  viewMode = "all";
+  applyView();
 }
 
 // ---------------------------------------------------------------------------
@@ -1475,7 +1510,8 @@ function commitEditor(){
   const day = rec.dayIndex;
   closeEditor();
   rebuildEvents();
-  showDay(day);                                // follow the event if it moved days
+  // Follow the event if it moved days, unless the whole camp is on screen.
+  if(viewMode === "all") applyView(); else showDay(day);
 }
 
 function deleteEditing(){
@@ -1491,7 +1527,7 @@ function deleteEditing(){
   persistStore();
   closeEditor();
   rebuildEvents();
-  showDay(currentDay);
+  applyView();
 }
 
 // ---------------------------------------------------------------------------
@@ -1506,7 +1542,10 @@ function init(){
 
   document.getElementById("prevDay").addEventListener("click", () => showDay(currentDay - 1));
   document.getElementById("nextDay").addEventListener("click", () => showDay(currentDay + 1));
-  document.getElementById("daySelect").addEventListener("change", e => showDay(parseInt(e.target.value, 10)));
+  document.getElementById("daySelect").addEventListener("change", e => {
+    if(e.target.value === ALL_DAYS_VALUE) showAllDays();
+    else showDay(parseInt(e.target.value, 10));
+  });
 
   [...TRACK_KEYS, "leadership"].forEach(key => {
     document.getElementById("tg-" + key).addEventListener("change", () => {
@@ -1515,7 +1554,7 @@ function init(){
         return;   // at least one column must stay visible
       }
       rebuildEvents();
-      showDay(currentDay);
+      applyView();
     });
   });
 
@@ -1533,7 +1572,7 @@ function init(){
     document.documentElement.style.removeProperty("--grid-h");
     paintHeaders(visibleColumns());
   };
-  const leavePrint = () => { fitGridHeight(); schedulePostRender(); };
+  const leavePrint = () => { applyGridHeight(); schedulePostRender(); };
   const onPrintChange = () => (printMQ.matches ? enterPrint() : leavePrint());
   if(printMQ.addEventListener) printMQ.addEventListener("change", onPrintChange);
   else if(printMQ.addListener) printMQ.addListener(onPrintChange);
@@ -1543,13 +1582,13 @@ function init(){
   let resizeTimer = null;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { fitGridHeight(); schedulePostRender(); }, 150);
+    resizeTimer = setTimeout(() => { applyGridHeight(); schedulePostRender(); }, 150);
   });
   document.getElementById("btnReset").addEventListener("click", () => {
     if(confirm("Reset all edits and restore the original schedule text? This cannot be undone.")){
       clearEdits();
       rebuildEvents();
-      showDay(currentDay);
+      applyView();
     }
   });
 
