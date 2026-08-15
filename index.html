@@ -432,8 +432,9 @@ const DAYS = [
       {time:"12:00 PM", full:"Lunch"},
       {time:"2:00 PM", full:"Music Rehearsal — location TBD"},
       {time:"4:00 PM", full:"Dinner"},
-      {time:"6:00 PM", drumline:"Meet the Drumline (public event)", guard:"Meet the Guard & Twirlers (public event)",
-        winds:"Varsity Band — Pregame / Storm Staging Rehearsal (Quad)"},
+      {time:"6:00 PM", end:"10:00 PM",
+        full:"Varsity Band — Pregame (BPF) / Storm Staging Rehearsal (Quad)",
+        details:"Meet the Guard, Meet the Twirlers, and Meet the Drumline to start this block!"},
       {time:"10:00 PM", full:"No Case"},
     ]},
   { title:"Sunday, August 23 — Full Band", note:null,
@@ -610,9 +611,11 @@ function textFor(editKey, original){
   const ov = STORE.overrides[editKey];
   return (ov && ov.title != null) ? ov.title : original;
 }
-function detailsFor(editKey){
+// A row in DAYS may carry its own `details`; a user edit overrides it.
+function detailsFor(editKey, fallback){
   const ov = STORE.overrides[editKey];
-  return (ov && ov.details) ? ov.details : "";
+  if(ov && ov.details != null) return ov.details;
+  return fallback || "";
 }
 // A pinned or deleted event no longer comes from the pipeline.
 function isSuppressed(editKey){
@@ -718,7 +721,7 @@ function buildDayEvents(dayIndex, visible){
           id: `${editKey}-${v.key}`, editKey, title, kind: compact ? "banner" : "full",
           dayIndex, offset: v.offset, start, end,
           slotStart: slot.start, slotEnd: slot.end,
-          details: detailsFor(editKey), tracks: TRACK_KEYS.slice(),
+          details: detailsFor(editKey, f.details), tracks: TRACK_KEYS.slice(),
         }));
       });
     });
@@ -737,7 +740,7 @@ function buildDayEvents(dayIndex, visible){
         const text = s[key];
         if(!text || text === "—") return;
         lanes.push({text, editKey:`d${dayIndex}-s${si}-r${sri}-${key}`,
-          rowEnd: s.end ? parseTime(s.end) : null});
+          rowEnd: s.end ? parseTime(s.end) : null, rowDetails: s.details});
       });
       // No content for this track in this slot. That normally means ANOTHER
       // column split its schedule here, so this track is still doing whatever
@@ -762,7 +765,7 @@ function buildDayEvents(dayIndex, visible){
         // scheduled activity that continues.
         const end = (lane.rowEnd && lane.rowEnd > start) ? Math.min(lane.rowEnd, GRID_END) : slot.end;
         rawEvents.push({
-          start, end, text: lane.text, editKey: lane.editKey,
+          start, end, text: lane.text, editKey: lane.editKey, details: lane.rowDetails,
           mergeable: lanes.length === 1 && !lane.rowEnd,
         });
       });
@@ -827,7 +830,7 @@ function buildDayEvents(dayIndex, visible){
         kind: ev.matchKind || "track", accent: track.accent,
         dayIndex, offset: offsetOf[track.key], start, end,
         slotStart: ev.start, slotEnd: ev.end,
-        details: detailsFor(ev.editKey), tracks: ev.groupTracks || [track.key],
+        details: detailsFor(ev.editKey, ev.details), tracks: ev.groupTracks || [track.key],
       }));
     });
   });
@@ -849,7 +852,7 @@ function buildDayEvents(dayIndex, visible){
           id: editKey, editKey, title: textFor(editKey, r.event), kind:"track",
           accent: LEADERSHIP.accent, dayIndex, offset: offsetOf.leadership,
           start: slot.start, end, slotStart: slot.start, slotEnd: end,
-          details: detailsFor(editKey), tracks: ["leadership"],
+          details: detailsFor(editKey, r.details), tracks: ["leadership"],
         }));
       });
     });
