@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<title>2026 CMB Band Camp — Calendar</title>
+<link rel="stylesheet" href="https://uicdn.toast.com/calendar/v2.1.3/toastui-calendar.min.css">
+<style>
+  :root{
+    color-scheme: light only;
+    --cardinal:#A61932;
+    --gold:#FFC836;
+    --secondary:#872837;
+    --leader:#5B6472;
+    --winds:#B8862F;
+    --gray:#EDEDED;
+    --gray-dark:#D8D8D8;
+    --white:#FFFFFF;
+    --dark:#2B2B2B;
+    --grid-line:#E2E2E2;
+
+    /* Toast UI's week view always renders 5 columns (workweek). We map tracks
+       onto the leading columns and clip the spares by over-widening the
+       calendar inside an overflow:hidden wrapper. Percentage-based internals
+       mean this stays aligned at any width, including on the printed page. */
+    --axis-w: 72px;
+    --col-scale: 1.6666666667;   /* 5 / visible-column-count */
+    --grid-h: 896px;             /* 16h x 0.933 px-per-min, matching the original density */
+  }
+  html{color-scheme: light only;}
+  *{box-sizing:border-box;}
+  body{
+    font-family: Calibri, Arial, "Segoe UI", sans-serif;
+    background:#f4f4f4;
+    color:var(--dark);
+    margin:0;
+    padding:16px;
+  }
+  .wrap{max-width:1180px;margin:0 auto;}
+
+  .toolbar{
+    display:flex;flex-wrap:wrap;gap:12px;align-items:center;
+    justify-content:space-between;margin-bottom:10px;
+  }
+  .daynav{display:flex;align-items:center;gap:8px;}
+  .daynav button{
+    background:var(--cardinal);color:#fff;border:none;padding:8px 14px;
+    border-radius:6px;cursor:pointer;font-weight:bold;font-size:14px;
+  }
+  .daynav button:hover:not(:disabled){background:var(--secondary);}
+  .daynav button:disabled{opacity:.45;cursor:default;}
+  .daynav select{
+    font-size:14px;padding:7px 10px;border-radius:6px;
+    border:2px solid var(--cardinal);color:var(--dark);background:#fff;
+    font-weight:bold;max-width:360px;
+  }
+  .toggles{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:13px;}
+  .toggles label{display:flex;align-items:center;gap:5px;cursor:pointer;font-weight:bold;}
+  .actions{display:flex;gap:8px;}
+  .actions button{
+    background:var(--white);border:1px solid #999;color:var(--dark);
+    padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;
+  }
+  .actions button:hover{background:#eee;}
+  .save-note{font-size:11.5px;color:#666;font-style:italic;margin-bottom:10px;}
+
+  .legend{font-size:11.5px;color:#555;margin:8px 0 10px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
+  .swatch{display:inline-block;width:12px;height:12px;border:1px solid #999;vertical-align:middle;margin-right:4px;border-radius:2px;}
+
+  /* ---- day panes -------------------------------------------------------
+     All 8 days stay mounted so printing can emit every day. Off-screen days
+     are pushed out of view rather than display:none'd, so Toast UI keeps
+     measuring real widths. */
+  #daysContainer{position:relative;}
+  .day-pane{
+    position:absolute;top:0;left:0;width:100%;
+    visibility:hidden;pointer-events:none;
+  }
+  .day-pane.is-current{position:static;visibility:visible;pointer-events:auto;}
+
+  .day-title{
+    background:var(--cardinal);color:#fff;font-size:18px;font-weight:bold;
+    text-align:center;padding:10px;border-radius:6px 6px 0 0;
+  }
+  .day-note{
+    background:var(--gray);color:var(--dark);font-style:italic;
+    font-size:12px;padding:6px 12px;
+  }
+  .cal-scroll{overflow-x:auto;background:var(--white);
+    border:1px solid var(--grid-line);box-shadow:0 1px 4px rgba(0,0,0,.12);}
+  .clip{overflow:hidden;min-width:600px;}
+  .cal{
+    width: calc(var(--axis-w) + (100% - var(--axis-w)) * var(--col-scale));
+    height: calc(var(--grid-h) + 44px);
+  }
+
+  /* ---- Toast UI overrides ---------------------------------------------- */
+  .toastui-calendar-day-name__date{display:none !important;}
+  .toastui-calendar-day-name__name{font-size:13px !important;font-weight:bold !important;}
+  .toastui-calendar-day-name-item{
+    padding:0 !important;text-align:center !important;
+    height:34px !important;line-height:34px !important;
+    border-right:1px solid rgba(255,255,255,.28) !important;
+  }
+  .toastui-calendar-day-names.toastui-calendar-week{height:34px !important;}
+  .toastui-calendar-timegrid{height:var(--grid-h) !important;min-height:var(--grid-h) !important;}
+  .toastui-calendar-panel.toastui-calendar-time{overflow-y:visible !important;}
+  .toastui-calendar-timegrid-time-column{background:#FAFAFA !important;}
+
+  /* Event text: the library sets white-space:nowrap on the whole layout. */
+  .toastui-calendar-event-time{border-radius:3px !important;}
+  .toastui-calendar-event-time .toastui-calendar-event-time-content{
+    white-space:normal !important;
+    font-size:11.5px !important;
+    line-height:1.25 !important;
+    padding:2px 4px !important;
+    overflow:hidden !important;
+  }
+  .ev-banner .toastui-calendar-event-time-content{
+    font-weight:bold !important;
+    white-space:nowrap !important;
+    text-overflow:ellipsis !important;
+    line-height:1.05 !important;
+  }
+  .ev-full .toastui-calendar-event-time-content{font-weight:bold !important;}
+  .ev-super .toastui-calendar-event-time-content{font-weight:bold !important;}
+
+  /* ---- inline editor ---------------------------------------------------- */
+  .editor-overlay{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.42);
+    z-index:1000;align-items:center;justify-content:center;padding:16px;
+  }
+  .editor-overlay.open{display:flex;}
+  .editor-box{
+    background:#fff;color:var(--dark);border-radius:8px;padding:16px;
+    width:min(560px,100%);box-shadow:0 8px 28px rgba(0,0,0,.3);
+  }
+  .editor-box h3{margin:0 0 2px;font-size:15px;color:var(--cardinal);}
+  .editor-when{font-size:12px;color:#666;margin-bottom:10px;}
+  .editor-box textarea{
+    width:100%;min-height:120px;font-family:inherit;font-size:13px;
+    padding:8px;border:1px solid #999;border-radius:5px;resize:vertical;
+    color:var(--dark);background:#fff;
+  }
+  .editor-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}
+  .editor-actions button{
+    padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;border:1px solid #999;
+    background:#fff;color:var(--dark);
+  }
+  .editor-actions button.primary{background:var(--cardinal);color:#fff;border-color:var(--cardinal);font-weight:bold;}
+
+  footer{text-align:center;font-size:11px;color:#888;margin-top:14px;padding-bottom:16px;}
+
+  /* ---- print ------------------------------------------------------------ */
+  @page{size: letter portrait; margin: 0.35in;}
+  @media print{
+    :root{--grid-h: 810px;}
+    .toolbar,.legend,.save-note,.editor-overlay{display:none !important;}
+    body{background:#fff;padding:0;}
+    .wrap{max-width:none;}
+    .day-pane{
+      position:static !important;left:auto !important;top:auto !important;
+      width:100% !important;visibility:visible !important;
+      page-break-after:always;break-after:page;
+    }
+    .day-pane:last-child{page-break-after:auto;break-after:auto;}
+    .cal-scroll{overflow:visible !important;box-shadow:none;}
+    .clip{min-width:0 !important;}
+    .toastui-calendar-panel.toastui-calendar-time{overflow:visible !important;height:auto !important;}
+    .toastui-calendar-event-time .toastui-calendar-event-time-content{font-size:9.5px !important;}
+    .day-title{font-size:15px;padding:7px;}
+    .day-note{font-size:10.5px;}
+    *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="toolbar">
+    <div class="daynav">
+      <button id="prevDay" type="button">&larr; Prev</button>
+      <select id="daySelect"></select>
+      <button id="nextDay" type="button">Next &rarr;</button>
+    </div>
+    <div class="toggles">
+      <label><input type="checkbox" id="tg-drumline" checked>Drumline</label>
+      <label><input type="checkbox" id="tg-guard" checked>Guard</label>
+      <label><input type="checkbox" id="tg-winds" checked>Winds</label>
+      <label><input type="checkbox" id="tg-leadership">Leadership calendar</label>
+    </div>
+    <div class="actions">
+      <button type="button" id="btnPrint">Print (all days)</button>
+      <button type="button" id="btnReset">Reset to Original</button>
+    </div>
+  </div>
+
+  <div class="save-note">Click any block to edit its text. Edits autosave in this browser only. Use the checkboxes to show/hide a track; Leadership is its own separate calendar, off by default. Printing includes every day, one per page, using your current column selections.</div>
+
+  <div class="legend">
+    <span><span class="swatch" style="background:#A61932;"></span>Full band / everyone together</span>
+    <span><span class="swatch" style="background:#fff;border-left:4px solid #A61932;"></span>Drumline</span>
+    <span><span class="swatch" style="background:#fff;border-left:4px solid #872837;"></span>Guard</span>
+    <span><span class="swatch" style="background:#fff;border-left:4px solid #B8862F;"></span>Winds</span>
+    <span><span class="swatch" style="background:#fff;border-left:4px solid #5B6472;"></span>Leadership</span>
+    <span><span class="swatch" style="background:#FFC836;"></span>Same activity across 2+ tracks</span>
+  </div>
+
+  <div id="daysContainer"></div>
+
+  <footer>Prep by CMB Leadership &bull; Schedule as of 7/28/26 &bull; Subject to change for weather/facility issues</footer>
+</div>
+
+<div class="editor-overlay" id="editorOverlay">
+  <div class="editor-box">
+    <h3 id="editorTitle">Edit block</h3>
+    <div class="editor-when" id="editorWhen"></div>
+    <textarea id="editorText"></textarea>
+    <div class="editor-actions">
+      <button type="button" id="editorCancel">Cancel</button>
+      <button type="button" class="primary" id="editorSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://uicdn.toast.com/calendar/v2.1.3/toastui-calendar.min.js"></script>
+<script>
+// ---------------------------------------------------------------------------
+// DATA — copied verbatim from CMB_Band_Camp_Schedule_2026_CalendarView.html
+// ---------------------------------------------------------------------------
+const DAYS = [
+  { title:"Sunday, August 16 — Drumline, Guard, Auditioning Members & Leadership",
+    note:"Leadership-specific sessions today (uniform fitting, leadership session) are on the Leadership calendar.",
+    rows:[
+      {time:"8:00 AM", full:"Move-in (check in at DORM office — not Music Hall!)"},
+      {time:"7:00 PM", full:"Welcome Meeting (Recital Hall)"},
+      {time:"8:00 PM", drumline:"Drumline Auditions begin", guard:"Guard Auditions begin", winds:"—"},
+      {time:"10:00 PM", full:"Done"},
+    ]},
+  { title:"Monday, August 17", note:null,
+    rows:[
+      {time:"9:00 AM", drumline:"Drumline Auditions", guard:"Guard Auditions",
+        winds:"First Year Winds: Fundamentals & Audition Sequence #1 — Position of Relaxation, Mark Time, First Steps, Forward/Backward March"},
+      {time:"12:00 PM", full:"Lunch"},
+      {time:"1:30 PM", drumline:"Drumline Auditions continue", guard:"Guard Auditions continue",
+        winds:"FYW Sequence #2 — Change of Direction, Slides, Cheat Steps, High Step"},
+      {time:"5:00 PM", full:"Dinner"},
+      {time:"7:00 PM", drumline:"Final Drumline Auditions", guard:"Final Guard Auditions", winds:"FYW Sequence #3 — Audition Routine"},
+      {time:"8:00 PM", drumline:"—", guard:"—", winds:"FYW: Audition Routine review stations; individual practice time TBD"},
+      {time:"9:00 PM", full:"Done (Drumline & Guard may run later depending on audition numbers)"},
+    ]},
+  { title:"Tuesday, August 18 — Full Band — WINDS AUDITION DAY!",
+    note:"Leadership: 7:00 AM Audition Preparation (Quad & Music Hall) — see Leadership calendar. Drumline/Guard rehearsal times below are on their own track, following the day's timing.",
+    rows:[
+      {time:"8:00 AM", full:"Returning Member Move-in (various locations)"},
+      {time:"8:00 AM", full:"Uniform checkout before 12 PM (Band Room): all returning members who passed video audition, plus Drumline"},
+      {time:"8:00 AM", drumline:"Drumline Rehearsal", guard:"Color Guard Rehearsal", winds:"Piccolo, Clarinet, Trumpet, Baritone Auditions (Music Hall)"},
+      {time:"9:45 AM", drumline:"Drumline Rehearsal", guard:"Color Guard Rehearsal", winds:"Saxophone, Mellophone, Trombone, Bass Trombone Auditions (Music Hall)"},
+      {time:"10:00 AM", drumline:"Drumline Rehearsal", guard:"Color Guard Rehearsal", winds:"—"},
+      {time:"11:30 AM", drumline:"Drumline Rehearsal", guard:"Color Guard Rehearsal", winds:"Sousaphone Auditions (Music Hall)"},
+      {time:"12:00 PM", drumline:"Lunch", guard:"Lunch", winds:"—"},
+      {time:"1:00 PM", drumline:"Rehearsal", guard:"Rehearsal", winds:"Returning members (passed video audition): Pregame & warm-up pass-off (Music Hall)"},
+      {time:"3:00 PM", drumline:"Dinner", guard:"Dinner", winds:"—"},
+      {time:"4:00 PM", full:"2026 ISUCF’V’MB & Storm results posted! Register via online portal"},
+      {time:"4:00 PM", full:"Instrument Checkout/Check-in for members of ISUCF’V’MB and Storm"},
+      {time:"6:00 PM", full:"Welcome Meeting — Full Band and Storm (Recital Hall)"},
+      {time:"8:30 PM", full:"Done"},
+    ]},
+  { title:"Wednesday, August 19 — Full Band",
+    note:"Winds groups: A = Piccolo/Clarinet/Trumpet · B = Alto Sax/Mellophone · C = Tenor Sax/Trombone/Baritone · D = Bass Trombone/Sousaphone.",
+    rows:[
+      {time:"8:00 AM", drumline:"Drumline Rehearsal", guard:"Color Guard Rehearsal",
+        winds:"Group A & B: Marching Fundamentals (BPF)\nGroup C & D: Breathing, Warm-ups, Music Fund. (Quad)"},
+      {time:"10:00 AM", drumline:"Drumline Rehearsal", guard:"Color Guard Rehearsal",
+        winds:"Group A & B: Breathing, Warm-ups, Music Fund. (Quad)\nGroup C & D: Marching Fundamentals (BPF)"},
+      {time:"12:00 PM", full:"Lunch (and Honor Rank Auditions)"},
+      {time:"1:30 PM", full:"FULL BAND: UDB/Beam Training, How to Read the Field (Recital Hall)"},
+      {time:"2:30 PM", drumline:"Drumline Rehearsal", guard:"Color Guard Rehearsal",
+        winds:"Picc/Clar/Trumpet: Marching Fund. (BPF)\nMellophone/Alto Sax: Stretch & Dance (Central Campus)\nTenor Sax/Low Brass: Pregame Music (Recital Hall)\n(rotate hourly)"},
+      {time:"5:30 PM", full:"Dinner Break"},
+      {time:"7:00 PM", full:"Full Band Rehearsal — Jack Trice Stadium: Stands Music, Step Show, No-Case"},
+      {time:"9:30 PM", full:"Done for the day (Guides: final rank sheet review — see Leadership calendar)"},
+    ]},
+  { title:"Thursday, August 20 — Full Band",
+    note:"Winds groups rotate hourly through 4 stations. Drumline & Guard rehearse on their own, same time blocks.",
+    rows:[
+      {time:"8:00 AM", full:"Full Band — Group Stretch/Warm-up (BPF)"},
+      {time:"9:00 AM", full:"Pregame (Varsity Band) / Music Rehearsal (State Storm)"},
+      {time:"12:00 PM", full:"Lunch"},
+      {time:"1:30 PM", drumline:"Drumline Rehearsal", guard:"Color Guard Rehearsal",
+        winds:"A: Pregame Music Rehearsal (Recital Hall)\nB: Fundamentals (BPF)\nC: Pregame Sectionals (Quad)\nD: Stands Music (Band Room)"},
+      {time:"2:30 PM", drumline:"Drumline Rehearsal", guard:"Color Guard Rehearsal",
+        winds:"A: Stands Music (Band Room)\nB: Pregame Rehearsal (Recital Hall)\nC: Fundamentals (BPF)\nD: Pregame Sectionals (Quad)"},
+      {time:"3:30 PM", drumline:"Drumline Rehearsal", guard:"Color Guard Rehearsal",
+        winds:"A: Pregame Sectionals (Quad)\nB: Stands Music (Band Room)\nC: Pregame Rehearsal (Recital Hall)\nD: Fundamentals (BPF)"},
+      {time:"4:30 PM", drumline:"Drumline Rehearsal", guard:"Color Guard Rehearsal",
+        winds:"A: Fundamentals (BPF)\nB: Pregame Sectionals (Quad)\nC: Stands Music (Band Room)\nD: Pregame Rehearsal (Recital Hall)"},
+      {time:"5:30 PM", full:"Done for the day — First Year Members: picnic & DIS Pep Rally"},
+      {time:"5:30 PM", full:"Uniform checkout — all returning members who still need them"},
+      {time:"7:30 PM", full:"Guide Gig — Destination Iowa State (see Leadership calendar)"},
+    ]},
+  { title:"Friday, August 21 — Full Band — State Fair", note:null,
+    rows:[
+      {time:"8:00 AM", full:"Full Band Stretch/Warm-up (BPF)"},
+      {time:"10:00 AM", full:"Varsity Band — Pregame Review / State Storm — Music Rehearsals"},
+      {time:"1:00 PM", full:"Lunch and Class B Uniform Distribution"},
+      {time:"3:00 PM", full:"Load Buses"},
+      {time:"3:20 PM", full:"Depart for State Fair"},
+      {time:"4:15 PM", full:"Arrive, Unload"},
+      {time:"5:00 PM", full:"Parade and Concert"},
+      {time:"5:50 PM", full:"Repack Instruments"},
+      {time:"6:15 PM", full:"Free time!"},
+      {time:"9:30 PM", full:"Load Buses, Depart"},
+      {time:"10:15 PM", full:"Arrive in Ames, Unload"},
+    ]},
+  { title:"Saturday, August 22 — Full Band", note:null,
+    rows:[
+      {time:"8:00 AM", full:"ISUCF’V’MB / Storm — Music and Body Warm-up"},
+      {time:"9:00 AM", full:"ISUCF’V’MB Pregame on Field / Storm: Parade March Rehearsal and Staging"},
+      {time:"12:00 PM", full:"Lunch"},
+      {time:"2:00 PM", full:"Music Rehearsal — location TBD"},
+      {time:"4:00 PM", full:"Dinner"},
+      {time:"6:00 PM", drumline:"Meet the Drumline (public event)", guard:"Meet the Guard & Twirlers (public event)",
+        winds:"Varsity Band — Pregame / Storm Staging Rehearsal (Quad)"},
+      {time:"10:00 PM", full:"No Case"},
+    ]},
+  { title:"Sunday, Aug 23 & Monday, Aug 24",
+    note:"Monday, Aug 24 is the first day of classes — regular Mon–Fri schedule begins, no camp-specific events.",
+    rows:[
+      {time:"9:00 AM", end:"3:00 PM", full:"Uniform Checkout — First Year Members (be in line by 10:00 AM) (Band Room)"},
+    ]},
+];
+
+// Leadership events, grouped by the DAYS index they fall on.
+const LEADERSHIP_BY_DAY = {
+  0: [ // Sunday Aug 16
+    {time:"10:00 AM", event:"Uniform Fitting — Leadership (incl. drumline seconds & others doing gigs this week) — MO10"},
+    {time:"10:00 AM", event:"Instrument Checkout — Guides and Captains — Cage"},
+    {time:"2:00 PM", event:"Leadership Session (returning leadership team only) — incl. preliminary rank assignments"},
+    {time:"5:00 PM", event:"Break (leadership only)"},
+    {time:"7:00 PM", event:"Welcome Meeting (all leadership expected) — Recital Hall"},
+  ],
+  2: [ // Tuesday Aug 18
+    {time:"7:00 AM", event:"Leadership: Audition Preparation — Quad & Music Hall"},
+  ],
+  3: [ // Wednesday Aug 19
+    {time:"9:30 PM", event:"Guides: final review of rank sheet assignments — Jack Trice Stadium"},
+  ],
+  4: [ // Thursday Aug 20
+    {time:"7:30 PM", event:"Guide Gig — Destination Iowa State"},
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// CONSTANTS
+// ---------------------------------------------------------------------------
+const GRID_START = 7 * 60;      // 7:00 AM — must match week.hourStart
+const GRID_END   = 23 * 60;     // 11:00 PM — must match week.hourEnd
+const BANNER_MIN = 20;          // compact full-band banner, expressed in minutes
+const MIN_EVENT_MIN = 15;       // never shrink a track block below this
+const STORAGE_KEY = "cmb_band_camp_calendar_edits_v2";
+const BASE = new Date(2000, 0, 3);   // a Monday, far from any real date
+
+const TRACKS = [
+  {key:"drumline",   label:"Drumline",   accent:"#A61932"},
+  {key:"guard",      label:"Guard",      accent:"#872837"},
+  {key:"winds",      label:"Winds",      accent:"#B8862F"},
+];
+const LEADERSHIP = {key:"leadership", label:"Leadership", accent:"#5B6472"};
+const TRACK_KEYS = TRACKS.map(t => t.key);
+
+const COLORS = {
+  fullBg:"#A61932", fullBorder:"#6E0F21", fullText:"#FFFFFF",
+  trackBg:"#FFFFFF", trackBorder:"#9A9A9A", trackText:"#2B2B2B",
+  superBg:"#FFC836", superBorder:"#B8862F", superText:"#2B2B2B",
+};
+
+// ---------------------------------------------------------------------------
+// TIME HELPERS — parseTime and buildSlots port verbatim from the source file
+// ---------------------------------------------------------------------------
+function parseTime(str){
+  const s = String(str).trim().toLowerCase();
+  if(s === "after mtg") return 20 * 60;
+  const m = String(str).match(/(\d+):(\d+)\s*([AP]M)/i);
+  if(!m) return null;
+  let h = parseInt(m[1], 10) % 12;
+  const min = parseInt(m[2], 10);
+  if(m[3].toUpperCase() === "PM") h += 12;
+  return h * 60 + min;
+}
+
+function buildSlots(rows){
+  const parsed = rows.map(r => ({...r, min: parseTime(r.time)}));
+  const order = [];
+  const map = {};
+  parsed.forEach(r => {
+    if(!(r.min in map)){ map[r.min] = []; order.push(r.min); }
+    map[r.min].push(r);
+  });
+  order.sort((a,b) => a - b);
+  return order.map((min, i) => {
+    let end = (i + 1 < order.length) ? order[i+1] : Math.min(min + 45, GRID_END);
+    if(end <= min) end = Math.min(min + 30, GRID_END);
+    // An explicit `end` marks an open window (uniform checkout, move-in) that
+    // should not be cut off the moment the next item starts. It only ever
+    // extends the slot, never shrinks it.
+    map[min].forEach(r => {
+      if(!r.end) return;
+      const e = parseTime(r.end);
+      if(e && e > end) end = e;
+    });
+    return {start: Math.max(min, GRID_START), end: Math.min(end, GRID_END), rows: map[min]};
+  }).filter(s => s.end > s.start);
+}
+
+function fmtTime(mins){
+  const h24 = Math.floor(mins / 60), m = mins % 60;
+  const h12 = (h24 % 12) || 12;
+  const ampm = h24 < 12 || h24 === 24 ? "AM" : "PM";
+  return h12 + ":" + String(m).padStart(2, "0") + " " + ampm;
+}
+
+function slotDate(dayIndex, offset, mins){
+  const d = new Date(BASE);
+  d.setDate(d.getDate() + dayIndex * 7 + offset);
+  d.setHours(0, mins, 0, 0);
+  return d;
+}
+function weekStartFor(dayIndex){
+  const d = new Date(BASE);
+  d.setDate(d.getDate() + dayIndex * 7);
+  return d;
+}
+
+// ---------------------------------------------------------------------------
+// PERSISTENCE — edits are keyed so that the three duplicated copies of a
+// full-band bar (and both halves of a superblock) always stay in agreement.
+// ---------------------------------------------------------------------------
+function loadEdits(){
+  try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
+  catch(err){ console.warn("Autosave unavailable in this browser/context.", err); return {}; }
+}
+function saveEdit(editKey, text){
+  try{
+    const store = loadEdits();
+    store[editKey] = text;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  }catch(err){ console.warn("Autosave unavailable in this browser/context.", err); }
+}
+function clearEdits(){
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(err){}
+}
+function textFor(editKey, original){
+  const edits = loadEdits();
+  return Object.prototype.hasOwnProperty.call(edits, editKey) ? edits[editKey] : original;
+}
+
+// ---------------------------------------------------------------------------
+// SLOTS -> EVENTS
+// ---------------------------------------------------------------------------
+function styleFor(kind, accent){
+  if(kind === "full" || kind === "banner"){
+    return {backgroundColor:COLORS.fullBg, borderColor:COLORS.fullBorder, color:COLORS.fullText,
+      customStyle:{border:"1.5px solid " + COLORS.fullBorder}};
+  }
+  if(kind === "super"){
+    return {backgroundColor:COLORS.superBg, borderColor:COLORS.superBorder, color:COLORS.superText,
+      customStyle:{border:"1.5px solid " + COLORS.superBorder}};
+  }
+  return {backgroundColor:COLORS.trackBg, borderColor:COLORS.trackBorder, color:COLORS.trackText,
+    customStyle:{border:"1.5px solid " + COLORS.trackBorder, borderLeft:"4px solid " + accent}};
+}
+
+// event id -> kind, so the post-render pass can tell banners from blocks.
+// Toast UI owns the event DOM and offers no className hook, but it does stamp
+// data-event-id onto each element, which is enough to map back.
+const EVENT_KIND = {};
+// id -> {start,end} in minutes, so the post-render pass can restore a block's
+// scheduled height without depending on whatever is currently in the DOM.
+const EVENT_GEO = {};
+
+function mkEvent(o){
+  const st = styleFor(o.kind, o.accent);
+  EVENT_KIND[o.id] = o.kind;
+  EVENT_GEO[o.id] = {start:o.start, end:o.end};
+  return {
+    id: o.id,
+    calendarId: "cmb",
+    title: o.title,
+    category: "time",
+    isReadOnly: true,
+    start: slotDate(o.dayIndex, o.offset, o.start),
+    end:   slotDate(o.dayIndex, o.offset, o.end),
+    backgroundColor: st.backgroundColor,
+    borderColor: st.borderColor,
+    color: st.color,
+    customStyle: st.customStyle,
+    raw: {editKey:o.editKey, kind:o.kind, slotStart:o.slotStart, slotEnd:o.slotEnd},
+  };
+}
+
+// Build every event for one camp day, given the currently visible columns.
+// `visible` is [{key,label,accent,offset}, ...] in left-to-right order.
+function buildDayEvents(dayIndex, visible){
+  const day = DAYS[dayIndex];
+  const slots = buildSlots(day.rows);
+  const events = [];
+  const offsetOf = {};
+  visible.forEach(v => { offsetOf[v.key] = v.offset; });
+  const visibleTracks = visible.filter(v => v.key !== "leadership");
+
+  // A slot is "split" when at least one row is track-specific. Full-band rows
+  // sharing a split slot shrink to compact banners so they cannot bury the
+  // track content underneath them.
+  const slotHasSplits = slots.map(slot => slot.rows.some(r => r.full === undefined));
+  const bannerMinFor = slots.map((slot, si) => {
+    const fulls = slot.rows.filter(r => r.full !== undefined);
+    if(!fulls.length || !slotHasSplits[si]) return 0;
+    // Guarantee the track content keeps at least one banner's worth of room.
+    return Math.min(BANNER_MIN, Math.floor((slot.end - slot.start) / (fulls.length + 1)));
+  });
+
+  // ---- full-band rows -> one identical event per visible track column ------
+  // Toast UI cannot span an event across columns, so the bar is duplicated.
+  // Adjacent, identically coloured blocks read as one bar.
+  slots.forEach((slot, si) => {
+    const fulls = slot.rows.filter(r => r.full !== undefined);
+    if(!fulls.length) return;
+    const bm = bannerMinFor[si];
+    const compact = bm > 0;
+    // Several full-band rows at one time divide the slot vertically. Letting
+    // Toast UI tile them side by side instead would break the duplicated bars
+    // into an unreadable A|B A|B A|B pattern across the three columns.
+    const share = compact ? bm : Math.floor((slot.end - slot.start) / fulls.length);
+    fulls.forEach((f, fi) => {
+      const start = slot.start + fi * share;
+      const end = (fi === fulls.length - 1 && !compact) ? slot.end : Math.min(start + share, slot.end);
+      if(end <= start) return;
+      const editKey = `d${dayIndex}-s${si}-f${fi}`;
+      const title = textFor(editKey, f.full);
+      visibleTracks.forEach(v => {
+        events.push(mkEvent({
+          id: `${editKey}-${v.key}`, editKey, title, kind: compact ? "banner" : "full",
+          dayIndex, offset: v.offset, start, end,
+          slotStart: slot.start, slotEnd: slot.end,
+        }));
+      });
+    });
+  });
+
+  // ---- track rows ---------------------------------------------------------
+  const mergedByTrack = {};
+  TRACK_KEYS.forEach(key => {
+    const rawEvents = [];
+    slots.forEach((slot, si) => {
+      const fulls = slot.rows.filter(r => r.full !== undefined);
+      const splits = slot.rows.filter(r => r.full === undefined);
+      const bannerOffset = fulls.length * bannerMinFor[si];
+      const lanes = [];
+      splits.forEach((s, sri) => {
+        const text = s[key];
+        if(text && text !== "—") lanes.push({text, editKey:`d${dayIndex}-s${si}-r${sri}-${key}`});
+      });
+      // No content for this track in this slot. That normally means ANOTHER
+      // column split its schedule here, so this track is still doing whatever
+      // it was doing — extend the previous block rather than cutting it at a
+      // boundary that belongs to a different column. A full-band row DOES
+      // interrupt, since that pulls every track into one activity.
+      if(lanes.length === 0){
+        const prev = rawEvents[rawEvents.length - 1];
+        if(prev && !fulls.length && prev.end === slot.start) prev.end = slot.end;
+        return;
+      }
+      // Push the banner offset into the start time here rather than carrying
+      // it to render time. Because the offset is baked in, a block sitting
+      // below a banner can still merge with the run that follows it, and a
+      // block that genuinely starts below a banner stays non-contiguous with
+      // whatever preceded it — so the merge test below needs no special case.
+      let start = slot.start + bannerOffset;
+      if(start > slot.end - MIN_EVENT_MIN) start = Math.max(slot.start, slot.end - MIN_EVENT_MIN);
+      lanes.forEach(lane => {
+        rawEvents.push({
+          start, end: slot.end, text: lane.text, editKey: lane.editKey,
+          mergeable: lanes.length === 1,
+        });
+      });
+    });
+
+    // Merge consecutive identical text with no gap, so a rehearsal repeated
+    // across four rows renders as one block instead of four stacked boxes.
+    const merged = [];
+    rawEvents.forEach(ev => {
+      const prev = merged[merged.length - 1];
+      if(ev.mergeable && prev && prev.mergeable && prev.text === ev.text && prev.end === ev.start){
+        prev.end = ev.end;
+      } else {
+        merged.push({...ev});
+      }
+    });
+    mergedByTrack[key] = merged;
+  });
+
+  // ---- cross-track superblocks -------------------------------------------
+  // Two or more tracks running byte-identical text over an identical range is
+  // really one shared activity. Toast UI cannot merge them into one rectangle,
+  // so matching gold styling is the ceiling here.
+  const groups = {};
+  TRACK_KEYS.forEach(key => {
+    mergedByTrack[key].forEach(ev => {
+      const gkey = `${ev.start}|${ev.end}|${ev.text}`;
+      (groups[gkey] = groups[gkey] || []).push(ev);
+    });
+  });
+  Object.values(groups).forEach(group => {
+    if(group.length < 2) return;
+    group.forEach(ev => { ev.isSuper = true; });
+  });
+
+  // ---- emit track events for the visible columns --------------------------
+  TRACKS.forEach(track => {
+    if(!(track.key in offsetOf)) return;
+    mergedByTrack[track.key].forEach(ev => {
+      const start = ev.start, end = ev.end;
+      if(end <= start) return;
+      const title = textFor(ev.editKey, ev.text);
+      events.push(mkEvent({
+        id: ev.editKey, editKey: ev.editKey, title,
+        kind: ev.isSuper ? "super" : "track", accent: track.accent,
+        dayIndex, offset: offsetOf[track.key], start, end,
+        slotStart: ev.start, slotEnd: ev.end,
+      }));
+    });
+  });
+
+  // ---- leadership ---------------------------------------------------------
+  // Independent column with its own slot pass and no cross-track logic.
+  // Two items at the same time tile side by side, which Toast UI does for us.
+  if("leadership" in offsetOf){
+    const leadRows = LEADERSHIP_BY_DAY[dayIndex] || [];
+    const leadSlots = buildSlots(leadRows.map(r => ({...r})));
+    leadSlots.forEach((slot, si) => {
+      slot.rows.forEach((r, ri) => {
+        const explicitEnd = r.end ? parseTime(r.end) : null;
+        const end = (explicitEnd && explicitEnd > slot.start) ? Math.min(explicitEnd, GRID_END) : slot.end;
+        if(end <= slot.start) return;
+        const editKey = `d${dayIndex}-lead-s${si}-r${ri}`;
+        events.push(mkEvent({
+          id: editKey, editKey, title: textFor(editKey, r.event), kind:"track",
+          accent: LEADERSHIP.accent, dayIndex, offset: offsetOf.leadership,
+          start: slot.start, end, slotStart: slot.start, slotEnd: end,
+        }));
+      });
+    });
+  }
+
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// CALENDAR INSTANCES — one per camp day so printing can emit all 8
+// ---------------------------------------------------------------------------
+const escapeHtml = s => String(s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+const THEME = {
+  common: {
+    backgroundColor:"#FFFFFF",
+    border:"1px solid #E2E2E2",
+    dayName:{color:"#2B2B2B"},
+    holiday:{color:"#2B2B2B"},
+    saturday:{color:"#2B2B2B"},
+    today:{color:"#2B2B2B"},
+    gridSelection:{backgroundColor:"rgba(166,25,50,0.10)", border:"1px solid #A61932"},
+  },
+  week: {
+    dayName:{borderTop:"none", borderBottom:"1px solid #D8D8D8", borderLeft:"none",
+      backgroundColor:"#FFFFFF", color:"#2B2B2B"},
+    timeGrid:{borderRight:"1px solid #E2E2E2"},
+    timeGridLeft:{width:"72px", backgroundColor:"#FAFAFA", borderRight:"1px solid #E2E2E2"},
+    timeGridLeftAdditionalTimezone:{backgroundColor:"#FAFAFA"},
+    timeGridHalfHourLine:{borderBottom:"1px dotted #EDEDED"},
+    timeGridHourLine:{borderBottom:"1px solid #E2E2E2"},
+    today:{color:"#2B2B2B", backgroundColor:"transparent"},
+    weekend:{backgroundColor:"transparent"},
+    pastTime:{color:"#777777"},
+    futureTime:{color:"#777777"},
+    pastDay:{color:"#2B2B2B"},
+    nowIndicatorLabel:{color:"transparent"},
+    nowIndicatorPast:{border:"none"},
+    nowIndicatorBullet:{backgroundColor:"transparent"},
+    nowIndicatorToday:{border:"none"},
+    nowIndicatorFuture:{border:"none"},
+  },
+};
+
+const calendars = [];   // index-aligned with DAYS
+let currentDay = 0;
+
+function visibleColumns(){
+  const cols = TRACKS.filter(t => document.getElementById("tg-" + t.key).checked).map(t => ({...t}));
+  if(document.getElementById("tg-leadership").checked) cols.push({...LEADERSHIP});
+  cols.forEach((c, i) => { c.offset = i; });
+  return cols;
+}
+
+// dayNames is indexed by getDay(); with startDayOfWeek=SUN and workweek=true
+// the rendered columns are Mon..Fri, i.e. indices 1..5.
+function dayNamesFor(visible){
+  const names = ["", "", "", "", "", "", ""];
+  visible.forEach(v => { names[1 + v.offset] = v.label; });
+  return names;
+}
+
+function createCalendars(){
+  const container = document.getElementById("daysContainer");
+  const select = document.getElementById("daySelect");
+  container.innerHTML = "";
+  select.innerHTML = "";
+
+  DAYS.forEach((day, i) => {
+    const pane = document.createElement("div");
+    pane.className = "day-pane";
+    pane.id = "pane-" + i;
+
+    const title = document.createElement("div");
+    title.className = "day-title";
+    title.textContent = day.title;
+    pane.appendChild(title);
+
+    if(day.note){
+      const note = document.createElement("div");
+      note.className = "day-note";
+      note.textContent = day.note;
+      pane.appendChild(note);
+    }
+
+    const scroll = document.createElement("div");
+    scroll.className = "cal-scroll";
+    const clip = document.createElement("div");
+    clip.className = "clip";
+    const host = document.createElement("div");
+    host.className = "cal";
+    clip.appendChild(host);
+    scroll.appendChild(clip);
+    pane.appendChild(scroll);
+    container.appendChild(pane);
+
+    const cal = new tui.Calendar(host, {
+      defaultView: "week",
+      usageStatistics: false,
+      isReadOnly: true,
+      theme: THEME,
+      week: {
+        workweek: true,
+        startDayOfWeek: 0,
+        hourStart: 7,
+        hourEnd: 23,
+        taskView: false,
+        eventView: ["time"],
+        showNowIndicator: false,
+        collapseDuplicateEvents: false,
+        dayNames: dayNamesFor(visibleColumns()),
+      },
+      calendars: [{id:"cmb", name:"CMB Band Camp"}],
+      template: {
+        time(ev){ return escapeHtml(ev.title).replace(/\n/g, "<br>"); },
+      },
+    });
+    cal.setDate(weekStartFor(i));
+    cal.on("clickEvent", ({event}) => openEditor(event));
+    calendars.push(cal);
+
+    const option = document.createElement("option");
+    option.value = String(i);
+    option.textContent = day.title.split(" — ")[0];
+    select.appendChild(option);
+  });
+}
+
+function rebuildEvents(){
+  const visible = visibleColumns();
+  document.documentElement.style.setProperty("--col-scale", String(5 / Math.max(1, visible.length)));
+  const names = dayNamesFor(visible);
+  calendars.forEach((cal, i) => {
+    cal.setOptions({week: {dayNames: names}});
+    cal.clear();
+    cal.createEvents(buildDayEvents(i, visible));
+  });
+  schedulePostRender();
+}
+
+// Toast UI renders through preact, so the DOM is not final on the next frame.
+// The post-render pass is idempotent, so run it a few times as layout settles
+// and let the last run win rather than trying to guess the right moment.
+let postRenderTimers = [];
+function schedulePostRender(){
+  postRenderTimers.forEach(clearTimeout);
+  postRenderTimers = [60, 200, 450].map(ms => setTimeout(() => paintHeaders(visibleColumns()), ms));
+  requestAnimationFrame(() => requestAnimationFrame(() => paintHeaders(visibleColumns())));
+}
+
+// Colour the column headers per track, and force the critical colours with
+// !important — the user's OS runs dark mode and the cascade alone was not
+// enough to stop it inverting the schedule to white-on-white.
+function paintHeaders(visible){
+  calendars.forEach((_, i) => {
+    const pane = document.getElementById("pane-" + i);
+    if(!pane) return;
+    const items = pane.querySelectorAll(".toastui-calendar-day-name-item");
+    items.forEach((item, idx) => {
+      const col = visible[idx];
+      const bg = col ? col.accent : "#FFFFFF";
+      item.style.setProperty("background-color", bg, "important");
+      item.style.setProperty("color", "#FFFFFF", "important");
+      // The label lives in a nested span that carries its own colour, so the
+      // rule has to be pushed down onto it as well.
+      item.querySelectorAll("*").forEach(node => {
+        node.style.setProperty("color", "#FFFFFF", "important");
+      });
+    });
+    pane.querySelectorAll(".toastui-calendar-timegrid-time").forEach(t => {
+      t.style.setProperty("color", "#777777", "important");
+    });
+    growClippedEvents(pane);
+  });
+}
+
+// A short block with long text gets its content cut off — the 7:00 AM
+// leadership item is the worst case. Grow any clipped block just far enough to
+// show its text, stopping short of whatever sits below it so blocks never
+// overlap. Purely cosmetic: the event's real times are untouched.
+//
+// This runs after every render, so it must be idempotent: heights are cleared
+// and re-measured from the library's own geometry each time, and a block is
+// only ever grown, never shrunk.
+function growClippedEvents(pane){
+  // Read the grid height from the CSS variable rather than measuring it. A
+  // measured height comes back scaled under any ancestor transform or zoom,
+  // while the heights we assign below are plain CSS pixels — mixing the two
+  // silently squashes every block.
+  const gridH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--grid-h"));
+  if(!(gridH > 0)) return;
+  const pctOfGrid = mins => (mins / (GRID_END - GRID_START)) * 100;
+
+  pane.querySelectorAll(".toastui-calendar-column").forEach(column => {
+    const blocks = [...column.querySelectorAll(".toastui-calendar-event-time")];
+    if(!blocks.length) return;
+
+    // Reset every block to the height its scheduled duration implies. Toast UI
+    // writes that height inline, so it cannot simply be cleared — recomputing
+    // it from the event's own times is what makes repeated passes idempotent.
+    blocks.forEach(block => {
+      const id = block.getAttribute("data-event-id");
+      const kind = EVENT_KIND[id];
+      if(kind) block.classList.add("ev-" + kind);
+      const geo = EVENT_GEO[id];
+      if(geo) block.style.setProperty("height", pctOfGrid(geo.end - geo.start) + "%", "important");
+    });
+
+    const colBottom = column.getBoundingClientRect().bottom;
+    const rects = blocks.map(b => b.getBoundingClientRect());
+
+    blocks.forEach((block, i) => {
+      // Compact banners are deliberately one line tall and are given an
+      // ellipsis by CSS; growing them would push them over the track content
+      // they are meant to sit above.
+      if(EVENT_KIND[block.getAttribute("data-event-id")] === "banner") return;
+
+      const me = rects[i];
+      let limit = colBottom;
+      rects.forEach((other, j) => {
+        if(j === i) return;
+        const overlapsHorizontally = other.left < me.right - 1 && other.right > me.left + 1;
+        if(overlapsHorizontally && other.top >= me.bottom - 1){
+          limit = Math.min(limit, other.top);
+        }
+      });
+      const content = block.firstElementChild || block;
+      content.style.removeProperty("font-size");
+      const needed = content.scrollHeight + 4;
+      const target = Math.min(needed, limit - me.top - 2);
+      if(target > me.height + 1){
+        // Percentages, not pixels: the print stylesheet shortens the grid, and
+        // a baked-in pixel height would then overflow into the block below.
+        block.style.setProperty("height", (target / gridH) * 100 + "%", "important");
+      }
+      // Still short of room — a dense block like Thursday's four-station winds
+      // rotation in a one-hour slot. Step the type down rather than cut the
+      // text off; overlapping the next block is not an option.
+      for(const size of [10.5, 9.5, 8.5]){
+        if(content.scrollHeight <= block.clientHeight + 2) break;
+        content.style.setProperty("font-size", size + "px", "important");
+      }
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// NAV / TOGGLES
+// ---------------------------------------------------------------------------
+function showDay(i){
+  currentDay = Math.max(0, Math.min(DAYS.length - 1, i));
+  DAYS.forEach((_, idx) => {
+    const pane = document.getElementById("pane-" + idx);
+    pane.classList.toggle("is-current", idx === currentDay);
+  });
+  document.getElementById("daySelect").value = String(currentDay);
+  document.getElementById("prevDay").disabled = currentDay === 0;
+  document.getElementById("nextDay").disabled = currentDay === DAYS.length - 1;
+  // The pane was parked off-screen; make it re-measure now that it is in flow.
+  calendars[currentDay].render();
+  schedulePostRender();
+}
+
+// ---------------------------------------------------------------------------
+// EDITOR
+// ---------------------------------------------------------------------------
+let editing = null;
+
+function openEditor(event){
+  const raw = event.raw || {};
+  editing = {editKey: raw.editKey, title: event.title};
+  document.getElementById("editorWhen").textContent =
+    (raw.slotStart != null && raw.slotEnd != null)
+      ? fmtTime(raw.slotStart) + " – " + fmtTime(raw.slotEnd)
+      : "";
+  const ta = document.getElementById("editorText");
+  ta.value = event.title;
+  document.getElementById("editorOverlay").classList.add("open");
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+function closeEditor(){
+  document.getElementById("editorOverlay").classList.remove("open");
+  editing = null;
+}
+function commitEditor(){
+  if(!editing || !editing.editKey){ closeEditor(); return; }
+  saveEdit(editing.editKey, document.getElementById("editorText").value);
+  closeEditor();
+  rebuildEvents();   // every copy sharing this edit key updates together
+}
+
+// ---------------------------------------------------------------------------
+// BOOT
+// ---------------------------------------------------------------------------
+function init(){
+  createCalendars();
+  rebuildEvents();
+  showDay(0);
+
+  document.getElementById("prevDay").addEventListener("click", () => showDay(currentDay - 1));
+  document.getElementById("nextDay").addEventListener("click", () => showDay(currentDay + 1));
+  document.getElementById("daySelect").addEventListener("change", e => showDay(parseInt(e.target.value, 10)));
+
+  [...TRACK_KEYS, "leadership"].forEach(key => {
+    document.getElementById("tg-" + key).addEventListener("change", () => {
+      if(visibleColumns().length === 0){
+        document.getElementById("tg-" + key).checked = true;
+        return;   // at least one column must stay visible
+      }
+      rebuildEvents();
+      showDay(currentDay);
+    });
+  });
+
+  document.getElementById("btnPrint").addEventListener("click", () => window.print());
+
+  // The print stylesheet shortens the grid and drops the type size, so the
+  // fit-the-text pass has to run again with print media applied. Inside a
+  // matchMedia('print') callback the computed styles already reflect print;
+  // beforeprint/afterprint are belt and braces for browsers that skip it.
+  const printMQ = window.matchMedia("print");
+  const onPrintChange = () => paintHeaders(visibleColumns());
+  if(printMQ.addEventListener) printMQ.addEventListener("change", onPrintChange);
+  else if(printMQ.addListener) printMQ.addListener(onPrintChange);
+  window.addEventListener("beforeprint", onPrintChange);
+  window.addEventListener("afterprint", () => schedulePostRender());
+  document.getElementById("btnReset").addEventListener("click", () => {
+    if(confirm("Reset all edits and restore the original schedule text? This cannot be undone.")){
+      clearEdits();
+      rebuildEvents();
+      showDay(currentDay);
+    }
+  });
+
+  document.getElementById("editorCancel").addEventListener("click", closeEditor);
+  document.getElementById("editorSave").addEventListener("click", commitEditor);
+  document.getElementById("editorOverlay").addEventListener("click", e => {
+    if(e.target.id === "editorOverlay") closeEditor();
+  });
+  document.addEventListener("keydown", e => {
+    if(e.key === "Escape") closeEditor();
+    if(e.key === "Enter" && (e.metaKey || e.ctrlKey) && editing) commitEditor();
+  });
+}
+
+init();
+</script>
+</body>
+</html>
