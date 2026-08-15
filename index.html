@@ -116,6 +116,10 @@
     line-height:1.25 !important;
     padding:2px 4px !important;
     overflow:hidden !important;
+    /* Concurrent items share a column by splitting its width, so a lane can be
+       narrower than a single long word ("Sousaphone"). overflow-wrap breaks
+       only such a word; word-break would hyphenate everything in sight. */
+    overflow-wrap:break-word !important;
   }
   .ev-banner .toastui-calendar-event-time-content{
     font-weight:bold !important;
@@ -251,10 +255,12 @@ const DAYS = [
       {time:"9:00 PM", full:"Done (Drumline & Guard may run later depending on audition numbers)"},
     ]},
   { title:"Tuesday, August 18 — Full Band — WINDS AUDITION DAY!",
-    note:"Leadership: 7:00 AM Audition Preparation (Quad & Music Hall) — see Leadership calendar. Drumline & Guard rehearsals begin at 10:00 AM; location TBD.",
+    note:"Leadership: 7:00 AM Audition Preparation (Quad & Music Hall) — see Leadership calendar. Move-in affects wind players only. Uniform checkout is Drumline & Winds only and runs alongside the Winds auditions. Drumline & Guard rehearsals begin at 10:00 AM; location TBD.",
     rows:[
-      {time:"8:00 AM", full:"Returning Member Move-in (various locations)"},
-      {time:"8:00 AM", full:"Uniform checkout before 12 PM (Band Room): all returning members who passed video audition, plus Drumline"},
+      {time:"8:00 AM", drumline:"—", guard:"—", winds:"Returning Member Move-in (various locations)"},
+      {time:"8:00 AM", end:"12:00 PM",
+        drumline:"Uniform Checkout — before 12 PM (Band Room)", guard:"—",
+        winds:"Uniform Checkout — before 12 PM (Band Room)"},
       {time:"8:00 AM", drumline:"—", guard:"—", winds:"Piccolo, Clarinet, Trumpet, Baritone Auditions (Music Hall)"},
       {time:"9:45 AM", drumline:"—", guard:"—", winds:"Saxophone, Mellophone, Trombone, Bass Trombone Auditions (Music Hall)"},
       {time:"10:00 AM", drumline:"Drumline Rehearsal — location TBD", guard:"Color Guard Rehearsal — location TBD", winds:"—"},
@@ -405,8 +411,13 @@ function buildSlots(rows){
     // An explicit `end` marks an open window (uniform checkout, move-in) that
     // should not be cut off the moment the next item starts. It only ever
     // extends the slot, never shrinks it.
+    //
+    // Only full-band rows stretch the slot itself. A track-specific window
+    // carries its own end instead (handled where its event is built), so that
+    // e.g. a Winds uniform-checkout window running to noon does not drag the
+    // Winds audition block sitting beside it out to noon as well.
     map[min].forEach(r => {
-      if(!r.end) return;
+      if(!r.end || r.full === undefined) return;
       const e = parseTime(r.end);
       if(e && e > end) end = e;
     });
@@ -560,7 +571,9 @@ function buildDayEvents(dayIndex, visible){
       const lanes = [];
       splits.forEach((s, sri) => {
         const text = s[key];
-        if(text && text !== "—") lanes.push({text, editKey:`d${dayIndex}-s${si}-r${sri}-${key}`});
+        if(!text || text === "—") return;
+        lanes.push({text, editKey:`d${dayIndex}-s${si}-r${sri}-${key}`,
+          rowEnd: s.end ? parseTime(s.end) : null});
       });
       // No content for this track in this slot. That normally means ANOTHER
       // column split its schedule here, so this track is still doing whatever
@@ -580,9 +593,13 @@ function buildDayEvents(dayIndex, visible){
       let start = slot.start + bannerOffset;
       if(start > slot.end - MIN_EVENT_MIN) start = Math.max(slot.start, slot.end - MIN_EVENT_MIN);
       lanes.forEach(lane => {
+        // A window with its own end keeps it, and is never merged into a
+        // neighbouring block — it is a span you fit something into, not a
+        // scheduled activity that continues.
+        const end = (lane.rowEnd && lane.rowEnd > start) ? Math.min(lane.rowEnd, GRID_END) : slot.end;
         rawEvents.push({
-          start, end: slot.end, text: lane.text, editKey: lane.editKey,
-          mergeable: lanes.length === 1,
+          start, end, text: lane.text, editKey: lane.editKey,
+          mergeable: lanes.length === 1 && !lane.rowEnd,
         });
       });
     });
