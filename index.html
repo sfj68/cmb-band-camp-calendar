@@ -615,11 +615,15 @@ const EVENT_KIND = {};
 // id -> {start,end} in minutes, so the post-render pass can restore a block's
 // scheduled height without depending on whatever is currently in the DOM.
 const EVENT_GEO = {};
+// id -> editKey, so the copies of one shared event can be found again in the
+// DOM and merged into a single spanning bar.
+const EVENT_EDIT = {};
 
 function mkEvent(o){
   const st = styleFor(o.kind, o.accent);
   EVENT_KIND[o.id] = o.kind;
   EVENT_GEO[o.id] = {start:o.start, end:o.end};
+  EVENT_EDIT[o.id] = o.editKey;
   return {
     id: o.id,
     calendarId: "cmb",
@@ -1065,22 +1069,46 @@ function growClippedEvents(pane){
   if(!(gridH > 0)) return;
   const pctOfGrid = mins => (mins / (GRID_END - GRID_START)) * 100;
 
-  pane.querySelectorAll(".toastui-calendar-column").forEach(column => {
-    const blocks = [...column.querySelectorAll(".toastui-calendar-event-time")];
-    if(!blocks.length) return;
+  const grid = pane.querySelector(".toastui-calendar-timegrid");
+  if(!grid) return;
+  const columns = [...pane.querySelectorAll(".toastui-calendar-timegrid .toastui-calendar-column")];
+  const all = [...pane.querySelectorAll(".toastui-calendar-event-time")];
+  if(!all.length) return;
 
-    // Reset every block to the height its scheduled duration implies. Toast UI
-    // writes that height inline, so it cannot simply be cleared — recomputing
-    // it from the event's own times is what makes repeated passes idempotent.
-    blocks.forEach(block => {
-      const id = block.getAttribute("data-event-id");
-      const kind = EVENT_KIND[id];
-      if(kind) block.classList.add("ev-" + kind);
-      const geo = EVENT_GEO[id];
-      if(geo) block.style.setProperty("height", pctOfGrid(geo.end - geo.start) + "%", "important");
-    });
+  // Reset every block to the geometry its schedule implies. Toast UI writes
+  // height inline, so it cannot simply be cleared — recomputing it from the
+  // event's own times is what makes repeated passes idempotent.
+  all.forEach(block => {
+    // Width, like height, is written inline by the library and cannot simply be
+    // cleared: these blocks are absolutely positioned, so dropping the width
+    // collapses them to shrink-to-fit. Remember the library's own value the
+    // first time a block is seen, and put it back before measuring again.
+    if(block.classList.contains("ev-span")){
+      if(block.dataset.libWidth) block.style.setProperty("width", block.dataset.libWidth, "important");
+      else block.style.removeProperty("width");
+      block.classList.remove("ev-span");
+    } else {
+      block.dataset.libWidth = block.style.width || "";
+    }
+    block.style.removeProperty("display");
+    block.style.removeProperty("z-index");
+    const content = block.firstElementChild || block;
+    content.style.removeProperty("font-size");
+    content.style.removeProperty("line-height");
+    const id = block.getAttribute("data-event-id");
+    const kind = EVENT_KIND[id];
+    if(kind) block.classList.add("ev-" + kind);
+    const geo = EVENT_GEO[id];
+    if(geo) block.style.setProperty("height", pctOfGrid(geo.end - geo.start) + "%", "important");
+  });
 
-    const colBottom = column.getBoundingClientRect().bottom;
+  // Merge the per-column copies of a shared event into one bar before anything
+  // is measured, so text is fitted against the width it will actually have.
+  spanSharedBlocks(columns, all);
+
+  {
+    const blocks = all.filter(b => b.style.display !== "none");
+    const gridBottom = grid.getBoundingClientRect().bottom;
     const rects = blocks.map(b => b.getBoundingClientRect());
 
     blocks.forEach((block, i) => {
@@ -1090,7 +1118,7 @@ function growClippedEvents(pane){
       if(EVENT_KIND[block.getAttribute("data-event-id")] === "banner") return;
 
       const me = rects[i];
-      let limit = colBottom;
+      let limit = gridBottom;
       rects.forEach((other, j) => {
         if(j === i) return;
         const overlapsHorizontally = other.left < me.right - 1 && other.right > me.left + 1;
@@ -1119,6 +1147,49 @@ function growClippedEvents(pane){
         content.style.setProperty("line-height", String(lineHeight), "important");
       }
     });
+  }
+}
+
+// An activity shared by several tracks arrives as one copy per column, because
+// Toast UI has no way to place a single event across columns. The columns
+// themselves do not clip their overflow, though, so the leftmost copy can be
+// widened across the whole run and the rest hidden — which turns what would be
+// three abutting look-alike blocks with seams between them into one continuous
+// bar. That bar is the signal that everybody is doing this together.
+function spanSharedBlocks(columns, blocks){
+  const groups = {};
+  blocks.forEach(block => {
+    const id = block.getAttribute("data-event-id");
+    const kind = EVENT_KIND[id];
+    if(kind !== "full" && kind !== "super" && kind !== "banner") return;
+    const key = EVENT_EDIT[id];
+    if(key) (groups[key] = groups[key] || []).push(block);
+  });
+
+  Object.values(groups).forEach(copies => {
+    if(copies.length < 2) return;
+    const placed = copies
+      .map(b => ({block: b, col: columns.indexOf(b.closest(".toastui-calendar-column"))}))
+      .filter(x => x.col >= 0)
+      .sort((a, b) => a.col - b.col);
+    if(placed.length < 2) return;
+
+    // Only a run of neighbouring columns can become one rectangle. A match that
+    // skips a column — Drumline and Winds but not Guard — cannot be drawn as a
+    // single bar without swallowing the column in between, so it keeps the
+    // matching colour and stays as separate blocks.
+    const contiguous = placed.every((x, i) => i === 0 || x.col === placed[i - 1].col + 1);
+    if(!contiguous) return;
+
+    const first = placed[0].block;
+    const last = placed[placed.length - 1].block;
+    const width = last.getBoundingClientRect().right - first.getBoundingClientRect().left;
+    if(!(width > 0)) return;
+
+    first.style.setProperty("width", width + "px", "important");
+    first.style.setProperty("z-index", "6", "important");   // paint over the columns it crosses
+    first.classList.add("ev-span");
+    placed.slice(1).forEach(x => x.block.style.setProperty("display", "none", "important"));
   });
 }
 

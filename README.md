@@ -46,9 +46,21 @@ A few consequences are worth knowing before editing this file:
   `calc(var(--axis-w) + (100% - var(--axis-w)) * var(--col-scale))`. Everything inside
   Toast UI is percentage-based, so this stays aligned at any width, including in print.
 
-- **Full-band bars are duplicated, not spanned.** Toast UI cannot span one event across
-  columns, so each full-band row emits one identical event per visible track column.
-  Adjacent, identically coloured blocks read as a single bar.
+- **Shared events really do span their columns.** Toast UI has no way to place a single
+  event across columns, so a full-band row still emits one copy per track column. After
+  render, though, those copies are merged: the individual `.toastui-calendar-column`
+  elements do not clip their overflow, so the leftmost copy is widened across the whole
+  run and the rest are hidden. The result is one continuous bar with one label, which is
+  what tells you at a glance that every track is doing this together.
+
+  Only a *run of neighbouring* columns can be merged this way. A match that skips a
+  column — Drumline and Winds but not Guard — would swallow the column in between, so it
+  keeps the matching colour and stays as separate blocks.
+
+  The merge happens before anything is measured, so text is fitted against the width the
+  bar will actually have. It is also why the post-render pass has to remember the
+  library's own inline `width`: these blocks are absolutely positioned, so simply
+  clearing the width collapses them to shrink-to-fit.
 
 - **What counts as full band is decided by the data, not just the `full:` key.** If
   every track runs byte-identical text over an identical range, that is a full-band
