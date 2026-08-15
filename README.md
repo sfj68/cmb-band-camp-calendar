@@ -47,9 +47,15 @@ A few consequences are worth knowing before editing this file:
 
 - **Full-band bars are duplicated, not spanned.** Toast UI cannot span one event across
   columns, so each full-band row emits one identical event per visible track column.
-  Adjacent, identically coloured blocks read as a single bar. The same limitation
-  applies to cross-track "superblocks" (two or more tracks running the identical
-  activity), which are matched by gold styling rather than merged into one rectangle.
+  Adjacent, identically coloured blocks read as a single bar.
+
+- **What counts as full band is decided by the data, not just the `full:` key.** If
+  every track runs byte-identical text over an identical range, that is a full-band
+  item and renders cardinal — Tuesday's lunch and dinner arrive as three track rows but
+  mean exactly what Monday's `full:` lunch means. Only a *partial* match, where two
+  tracks share an activity while the third runs its own, gets the gold "superblock"
+  treatment. Toast UI still cannot merge those into one rectangle, so matching colour
+  is the ceiling.
 
 - **Compact banners are encoded as time, not pixels.** When a slot has both full-band
   and track-specific rows, the full-band items shrink to 20-minute banners at the top of
@@ -64,6 +70,10 @@ A few consequences are worth knowing before editing this file:
 
 - **Block heights are set as percentages.** The print stylesheet shortens the grid, and
   pixel heights would overflow into the block below.
+
+- **No true black anywhere.** Dark text is a deep cardinal (`--dark: #4A1220`), because
+  near-black on gold reads as the wrong school's colours. It holds 9.7:1 contrast on
+  gold and 15:1 on white. Neutral greys are warmed to `--muted` for the same reason.
 
 - The calendar is **read-only**: only text is editable and persisted, so drag-and-drop
   would silently revert on reload.

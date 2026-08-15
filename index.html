@@ -17,7 +17,11 @@
     --gray:#EDEDED;
     --gray-dark:#D8D8D8;
     --white:#FFFFFF;
-    --dark:#2B2B2B;
+    /* Never true black: black-on-gold is the other school's colours. All dark
+       text is a deep cardinal, which keeps gold blocks reading as cardinal and
+       gold. 9.7:1 on gold, 15:1 on white. */
+    --dark:#4A1220;
+    --muted:#6F5B61;
     --grid-line:#E2E2E2;
 
     /* Toast UI's week view always renders 5 columns (workweek). We map tracks
@@ -57,15 +61,16 @@
   }
   .toggles{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:13px;}
   .toggles label{display:flex;align-items:center;gap:5px;cursor:pointer;font-weight:bold;}
+  .toggles input{accent-color:var(--cardinal);}
   .actions{display:flex;gap:8px;}
   .actions button{
     background:var(--white);border:1px solid #999;color:var(--dark);
     padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;
   }
   .actions button:hover{background:#eee;}
-  .save-note{font-size:11.5px;color:#666;font-style:italic;margin-bottom:10px;}
+  .save-note{font-size:11.5px;color:var(--muted);font-style:italic;margin-bottom:10px;}
 
-  .legend{font-size:11.5px;color:#555;margin:8px 0 10px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
+  .legend{font-size:11.5px;color:var(--muted);margin:8px 0 10px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
   .swatch{display:inline-block;width:12px;height:12px;border:1px solid #999;vertical-align:middle;margin-right:4px;border-radius:2px;}
 
   /* ---- day panes -------------------------------------------------------
@@ -145,7 +150,7 @@
     width:min(560px,100%);box-shadow:0 8px 28px rgba(0,0,0,.3);
   }
   .editor-box h3{margin:0 0 2px;font-size:15px;color:var(--cardinal);}
-  .editor-when{font-size:12px;color:#666;margin-bottom:10px;}
+  .editor-when{font-size:12px;color:var(--muted);margin-bottom:10px;}
   .editor-box textarea{
     width:100%;min-height:120px;font-family:inherit;font-size:13px;
     padding:8px;border:1px solid #999;border-radius:5px;resize:vertical;
@@ -158,7 +163,7 @@
   }
   .editor-actions button.primary{background:var(--cardinal);color:#fff;border-color:var(--cardinal);font-weight:bold;}
 
-  footer{text-align:center;font-size:11px;color:#888;margin-top:14px;padding-bottom:16px;}
+  footer{text-align:center;font-size:11px;color:var(--muted);margin-top:14px;padding-bottom:16px;}
 
   /* ---- print ------------------------------------------------------------ */
   @page{size: letter portrait; margin: 0.35in;}
@@ -212,7 +217,7 @@
     <span><span class="swatch" style="background:#fff;border-left:4px solid #872837;"></span>Guard</span>
     <span><span class="swatch" style="background:#fff;border-left:4px solid #B8862F;"></span>Winds</span>
     <span><span class="swatch" style="background:#fff;border-left:4px solid #5B6472;"></span>Leadership</span>
-    <span><span class="swatch" style="background:#FFC836;"></span>Same activity across 2+ tracks</span>
+    <span><span class="swatch" style="background:#FFC836;"></span>Shared by two tracks (the third differs)</span>
   </div>
 
   <div id="daysContainer"></div>
@@ -383,10 +388,14 @@ const TRACKS = [
 const LEADERSHIP = {key:"leadership", label:"Leadership", accent:"#5B6472"};
 const TRACK_KEYS = TRACKS.map(t => t.key);
 
+// Dark cardinal stands in for black throughout — most importantly on the gold
+// superblocks, where near-black text read as the wrong school's palette.
+const DARK = "#4A1220";
+const MUTED = "#6F5B61";
 const COLORS = {
   fullBg:"#A61932", fullBorder:"#6E0F21", fullText:"#FFFFFF",
-  trackBg:"#FFFFFF", trackBorder:"#9A9A9A", trackText:"#2B2B2B",
-  superBg:"#FFC836", superBorder:"#B8862F", superText:"#2B2B2B",
+  trackBg:"#FFFFFF", trackBorder:"#9A9A9A", trackText:DARK,
+  superBg:"#FFC836", superBorder:"#B8862F", superText:DARK,
 };
 
 // ---------------------------------------------------------------------------
@@ -638,7 +647,17 @@ function buildDayEvents(dayIndex, visible){
   });
   Object.values(groups).forEach(group => {
     if(group.length < 2) return;
-    group.forEach(ev => { ev.isSuper = true; });
+    // Every track running the same thing at the same time IS a full-band item,
+    // whatever the source rows happen to call it. Tuesday's lunch and dinner
+    // arrive as three track rows but mean exactly what Monday's `full:` lunch
+    // means, and must not render differently. A partial match — two tracks
+    // sharing an activity while the third runs its own — stays gold.
+    const everyTrack = group.length === TRACK_KEYS.length;
+    const shared = `d${dayIndex}-grp-${group[0].start}-${group[0].end}`;
+    group.forEach(ev => {
+      ev.matchKind = everyTrack ? "full" : "super";
+      ev.editKey = shared;   // one edit updates every copy, as for full-band rows
+    });
   });
 
   // ---- emit track events for the visible columns --------------------------
@@ -648,9 +667,12 @@ function buildDayEvents(dayIndex, visible){
       const start = ev.start, end = ev.end;
       if(end <= start) return;
       const title = textFor(ev.editKey, ev.text);
+      // A matched event shares its edit key across tracks, so its id has to
+      // carry the track to stay unique — same shape as the full-band copies.
       events.push(mkEvent({
-        id: ev.editKey, editKey: ev.editKey, title,
-        kind: ev.isSuper ? "super" : "track", accent: track.accent,
+        id: ev.matchKind ? `${ev.editKey}-${track.key}` : ev.editKey,
+        editKey: ev.editKey, title,
+        kind: ev.matchKind || "track", accent: track.accent,
         dayIndex, offset: offsetOf[track.key], start, end,
         slotStart: ev.start, slotEnd: ev.end,
       }));
@@ -691,25 +713,25 @@ const THEME = {
   common: {
     backgroundColor:"#FFFFFF",
     border:"1px solid #E2E2E2",
-    dayName:{color:"#2B2B2B"},
-    holiday:{color:"#2B2B2B"},
-    saturday:{color:"#2B2B2B"},
-    today:{color:"#2B2B2B"},
+    dayName:{color:DARK},
+    holiday:{color:DARK},
+    saturday:{color:DARK},
+    today:{color:DARK},
     gridSelection:{backgroundColor:"rgba(166,25,50,0.10)", border:"1px solid #A61932"},
   },
   week: {
     dayName:{borderTop:"none", borderBottom:"1px solid #D8D8D8", borderLeft:"none",
-      backgroundColor:"#FFFFFF", color:"#2B2B2B"},
+      backgroundColor:"#FFFFFF", color:DARK},
     timeGrid:{borderRight:"1px solid #E2E2E2"},
     timeGridLeft:{width:"72px", backgroundColor:"#FAFAFA", borderRight:"1px solid #E2E2E2"},
     timeGridLeftAdditionalTimezone:{backgroundColor:"#FAFAFA"},
     timeGridHalfHourLine:{borderBottom:"1px dotted #EDEDED"},
     timeGridHourLine:{borderBottom:"1px solid #E2E2E2"},
-    today:{color:"#2B2B2B", backgroundColor:"transparent"},
+    today:{color:DARK, backgroundColor:"transparent"},
     weekend:{backgroundColor:"transparent"},
-    pastTime:{color:"#777777"},
-    futureTime:{color:"#777777"},
-    pastDay:{color:"#2B2B2B"},
+    pastTime:{color:MUTED},
+    futureTime:{color:MUTED},
+    pastDay:{color:DARK},
     nowIndicatorLabel:{color:"transparent"},
     nowIndicatorPast:{border:"none"},
     nowIndicatorBullet:{backgroundColor:"transparent"},
@@ -844,7 +866,7 @@ function paintHeaders(visible){
       });
     });
     pane.querySelectorAll(".toastui-calendar-timegrid-time").forEach(t => {
-      t.style.setProperty("color", "#777777", "important");
+      t.style.setProperty("color", MUTED, "important");
     });
     growClippedEvents(pane);
   });
