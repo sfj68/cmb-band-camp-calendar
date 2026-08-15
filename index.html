@@ -89,7 +89,11 @@
   }
   .cal-scroll{overflow-x:auto;background:var(--white);
     border:1px solid var(--grid-line);box-shadow:0 1px 4px rgba(0,0,0,.12);}
-  .clip{overflow:hidden;min-width:600px;}
+  /* Tuesday morning puts three concurrent items in the Winds column, so a
+     column has to stay wide enough to split into three readable lanes. Below
+     this the calendar scrolls sideways rather than compressing to the point
+     where single words break across lines. */
+  .clip{overflow:hidden;min-width:900px;}
   .cal{
     width: calc(var(--axis-w) + (100% - var(--axis-w)) * var(--col-scale));
     height: calc(var(--grid-h) + 44px);
@@ -255,19 +259,22 @@ const DAYS = [
       {time:"9:00 PM", full:"Done (Drumline & Guard may run later depending on audition numbers)"},
     ]},
   { title:"Tuesday, August 18 — Full Band — WINDS AUDITION DAY!",
-    note:"Leadership: 7:00 AM Audition Preparation (Quad & Music Hall) — see Leadership calendar. Move-in affects wind players only. Uniform checkout is Drumline & Winds only and runs alongside the Winds auditions. Drumline & Guard rehearsals begin at 10:00 AM; location TBD.",
+    note:"Leadership: 7:00 AM Audition Preparation (Quad & Music Hall) — see Leadership calendar. Move-in affects wind players only. All winds auditions are in Music Hall. Move-in and uniform checkout are both open windows until 12:00 PM, running alongside the auditions; checkout is Drumline & Winds only. Drumline & Guard rehearsals begin at 10:00 AM; location TBD.",
     rows:[
-      {time:"8:00 AM", drumline:"—", guard:"—", winds:"Returning Member Move-in (various locations)"},
+      // Two open windows running 8:00–12:00 keep the Winds column at a steady
+      // three lanes all morning, so the audition blocks stay in the same third
+      // instead of widening every time one of the other two ends.
+      {time:"8:00 AM", end:"12:00 PM", drumline:"—", guard:"—", winds:"Returning Member Move-in (various locations)"},
       {time:"8:00 AM", end:"12:00 PM",
         drumline:"Uniform Checkout — before 12 PM (Band Room)", guard:"—",
         winds:"Uniform Checkout — before 12 PM (Band Room)"},
-      {time:"8:00 AM", drumline:"—", guard:"—", winds:"Piccolo, Clarinet, Trumpet, Baritone Auditions (Music Hall)"},
-      {time:"9:45 AM", drumline:"—", guard:"—", winds:"Saxophone, Mellophone, Trombone, Bass Trombone Auditions (Music Hall)"},
+      {time:"8:00 AM", drumline:"—", guard:"—", winds:"Piccolo, Clarinet, Trumpet, Baritone Auditions begin"},
+      {time:"9:45 AM", drumline:"—", guard:"—", winds:"Saxophone, Mellophone, Trombone, Bass Trombone Auditions begin"},
       {time:"10:00 AM", drumline:"Drumline Rehearsal — location TBD", guard:"Color Guard Rehearsal — location TBD", winds:"—"},
-      {time:"11:30 AM", drumline:"—", guard:"—", winds:"Sousaphone Auditions (Music Hall)"},
-      {time:"12:00 PM", drumline:"Lunch", guard:"Lunch", winds:"—"},
+      {time:"11:30 AM", drumline:"—", guard:"—", winds:"Sousaphone Auditions begin"},
+      {time:"12:00 PM", drumline:"Lunch", guard:"Lunch", winds:"Lunch"},
       {time:"1:00 PM", drumline:"Drumline Rehearsal", guard:"Color Guard Rehearsal", winds:"Returning members (passed video audition): Pregame & warm-up pass-off (Music Hall)"},
-      {time:"3:00 PM", drumline:"Dinner", guard:"Dinner", winds:"—"},
+      {time:"3:00 PM", drumline:"Dinner", guard:"Dinner", winds:"Dinner"},
       {time:"4:00 PM", full:"2026 ISUCF’V’MB & Storm results posted! Register via online portal"},
       {time:"4:00 PM", full:"Instrument Checkout/Check-in for members of ISUCF’V’MB and Storm"},
       {time:"6:00 PM", full:"Welcome Meeting — Full Band and Storm (Recital Hall)"},
@@ -895,6 +902,7 @@ function growClippedEvents(pane){
       });
       const content = block.firstElementChild || block;
       content.style.removeProperty("font-size");
+      content.style.removeProperty("line-height");
       const needed = content.scrollHeight + 4;
       const target = Math.min(needed, limit - me.top - 2);
       if(target > me.height + 1){
@@ -903,11 +911,14 @@ function growClippedEvents(pane){
         block.style.setProperty("height", (target / gridH) * 100 + "%", "important");
       }
       // Still short of room — a dense block like Thursday's four-station winds
-      // rotation in a one-hour slot. Step the type down rather than cut the
-      // text off; overlapping the next block is not an option.
-      for(const size of [10.5, 9.5, 8.5]){
+      // rotation in a one-hour slot, or a short audition block sharing its
+      // column with two all-morning windows. Step the type down and tighten the
+      // leading rather than cut the text off; overlapping the next block is not
+      // an option.
+      for(const [size, lineHeight] of [[10.5, 1.2], [9.5, 1.15], [8.5, 1.1], [7.5, 1.05]]){
         if(content.scrollHeight <= block.clientHeight + 2) break;
         content.style.setProperty("font-size", size + "px", "important");
+        content.style.setProperty("line-height", String(lineHeight), "important");
       }
     });
   });
