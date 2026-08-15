@@ -158,6 +158,15 @@
     box-shadow:0 10px 34px rgba(0,0,0,.42);
   }
   .editor-box h3{margin:0 0 14px;font-size:17px;color:#fff;font-weight:bold;}
+  .lock-box{width:min(430px,100%);}
+  .lock-note{margin:-8px 0 12px;font-size:13px;color:rgba(255,255,255,.88);line-height:1.4;}
+
+  /* Blocks only invite a click once editing is unlocked. */
+  .toastui-calendar-event-time{cursor:default !important;}
+  body.editing .toastui-calendar-event-time{cursor:pointer !important;}
+  body.editing .actions #btnEdit{
+    background:var(--gold);color:var(--dark);border-color:#D9A81C;font-weight:bold;
+  }
 
   .ed-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 20px;}
   .ed-span2{grid-column:span 2;}
@@ -243,13 +252,14 @@
       <label><input type="checkbox" id="tg-leadership">Leadership calendar</label>
     </div>
     <div class="actions">
-      <button type="button" id="btnNew" class="accent">+ New Event</button>
+      <button type="button" id="btnEdit">Edit Calendar</button>
+      <button type="button" id="btnNew" class="accent" hidden>+ New Event</button>
       <button type="button" id="btnPrint">Print (all days)</button>
-      <button type="button" id="btnReset">Reset to Original</button>
+      <button type="button" id="btnReset" hidden>Reset to Original</button>
     </div>
   </div>
 
-  <div class="save-note">Click any block to edit its name, day, times, details and tracks — or use <strong>+ New Event</strong> to add one. Changes autosave in this browser only, and <strong>Reset to Original</strong> puts the published schedule back. Use the checkboxes above to show/hide a track; Leadership is its own separate calendar, off by default. Printing includes every day, one per page, using your current column selections.</div>
+  <div class="save-note"><span id="editHint"></span> Use the checkboxes above to show/hide a track; Leadership is its own separate calendar, off by default. Printing includes every day, one per page, using your current column selections.</div>
 
   <div class="legend">
     <span><span class="swatch" style="background:#A61932;"></span>Full band / everyone together</span>
@@ -263,6 +273,22 @@
   <div id="daysContainer"></div>
 
   <footer>Prep by CMB Leadership &bull; Schedule as of 7/28/26 &bull; Subject to change for weather/facility issues</footer>
+</div>
+
+<div class="editor-overlay" id="lockOverlay">
+  <div class="editor-box lock-box" role="dialog" aria-modal="true" aria-labelledby="lockTitle">
+    <h3 id="lockTitle">Edit calendar</h3>
+    <p class="lock-note">Enter the editing password to change events on this device.</p>
+    <label class="ed-field">Password
+      <input type="password" id="lockPass" autocomplete="current-password">
+    </label>
+    <p class="ed-error" id="lockError" role="alert"></p>
+    <div class="editor-actions">
+      <span class="ed-spacer"></span>
+      <button type="button" id="lockCancel">Cancel</button>
+      <button type="button" class="primary" id="lockGo">Unlock</button>
+    </div>
+  </div>
 </div>
 
 <div class="editor-overlay" id="editorOverlay">
@@ -407,8 +433,7 @@ const DAYS = [
         winds:"Varsity Band — Pregame / Storm Staging Rehearsal (Quad)"},
       {time:"10:00 PM", full:"No Case"},
     ]},
-  { title:"Sunday, Aug 23 & Monday, Aug 24",
-    note:"Monday, Aug 24 is the first day of classes — regular Mon–Fri schedule begins, no camp-specific events.",
+  { title:"Sunday, August 23 — Full Band", note:null,
     rows:[
       {time:"9:00 AM", end:"3:00 PM", full:"Uniform Checkout — First Year Members (be in line by 10:00 AM) (Band Room)"},
     ]},
@@ -1213,6 +1238,73 @@ function showDay(i){
 // ---------------------------------------------------------------------------
 // EDITOR
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// EDIT MODE
+//
+// This is a guard against accidental edits, NOT access control. The page is
+// public and static, so anyone who opens the source can read this hash or flip
+// the flag in devtools. It costs nothing to bypass — it only stops a viewer
+// changing the schedule by misclicking. That is an acceptable trade here
+// because edits never leave the viewer's own browser: nobody can alter what
+// anyone else sees, whatever they do.
+//
+// To change the password, run this in the browser console and paste the result:
+//   crypto.subtle.digest("SHA-256", new TextEncoder().encode("newpassword"))
+//     .then(b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,"0")).join(""))
+const EDIT_PASSWORD_SHA256 = "da5cdfc3ee7b1786e2b07f491e4dbfda5ec6e0d72df33f20f4b22848870f74a5";
+const UNLOCK_KEY = "cmb_band_camp_edit_unlocked";
+
+let editMode = false;
+
+async function sha256Hex(text){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function applyEditMode(){
+  document.body.classList.toggle("editing", editMode);
+  document.getElementById("btnNew").hidden = !editMode;
+  document.getElementById("btnReset").hidden = !editMode;
+  document.getElementById("btnEdit").textContent = editMode ? "Done Editing" : "Edit Calendar";
+  document.getElementById("editHint").textContent = editMode
+    ? "Editing is unlocked on this device. Click any block to change its name, day, times, details and tracks, or use + New Event."
+    : "Viewing only. Choose Edit Calendar to make changes — they save in this browser alone and never affect what anyone else sees.";
+}
+
+function setEditMode(on){
+  editMode = on;
+  try{
+    if(on) sessionStorage.setItem(UNLOCK_KEY, "1");
+    else sessionStorage.removeItem(UNLOCK_KEY);
+  }catch(err){}
+  if(!on) closeEditor();
+  applyEditMode();
+}
+
+function openLock(){
+  document.getElementById("lockError").textContent = "";
+  document.getElementById("lockPass").value = "";
+  document.getElementById("lockOverlay").classList.add("open");
+  document.getElementById("lockPass").focus();
+}
+function closeLock(){
+  document.getElementById("lockOverlay").classList.remove("open");
+}
+async function tryUnlock(){
+  const entered = document.getElementById("lockPass").value;
+  if(!entered){ document.getElementById("lockError").textContent = "Enter the password."; return; }
+  let ok = false;
+  try{
+    ok = (await sha256Hex(entered)) === EDIT_PASSWORD_SHA256;
+  }catch(err){
+    document.getElementById("lockError").textContent = "This browser could not check the password.";
+    return;
+  }
+  if(!ok){ document.getElementById("lockError").textContent = "That password is not right."; return; }
+  closeLock();
+  setEditMode(true);
+}
+
 let editing = null;
 
 const EDITOR_TRACK_KEYS = [...TRACK_KEYS, "leadership"];
@@ -1250,6 +1342,7 @@ function setEditorFields({title, details, dayIndex, start, end, tracks}){
 // Open an existing block. The fields show exactly what is on the grid, so
 // saving without changing anything leaves the schedule looking identical.
 function openEditor(event){
+  if(!editMode) return;
   const raw = event.raw || {};
   editing = {editKey: raw.editKey, isNew: false, isCustom: !!raw.custom};
   document.getElementById("editorTitle").textContent = "Edit event";
@@ -1266,6 +1359,7 @@ function openEditor(event){
 }
 
 function openNewEvent(){
+  if(!editMode) return;
   editing = {editKey: null, isNew: true, isCustom: true};
   document.getElementById("editorTitle").textContent = "New event";
   document.getElementById("edDelete").hidden = true;
@@ -1390,6 +1484,21 @@ function init(){
     }
   });
 
+  try{ editMode = sessionStorage.getItem(UNLOCK_KEY) === "1"; }catch(err){ editMode = false; }
+  applyEditMode();
+
+  document.getElementById("btnEdit").addEventListener("click", () => {
+    if(editMode) setEditMode(false); else openLock();
+  });
+  document.getElementById("lockCancel").addEventListener("click", closeLock);
+  document.getElementById("lockGo").addEventListener("click", tryUnlock);
+  document.getElementById("lockPass").addEventListener("keydown", e => {
+    if(e.key === "Enter") tryUnlock();
+  });
+  document.getElementById("lockOverlay").addEventListener("click", e => {
+    if(e.target.id === "lockOverlay") closeLock();
+  });
+
   document.getElementById("btnNew").addEventListener("click", openNewEvent);
   document.getElementById("editorCancel").addEventListener("click", closeEditor);
   document.getElementById("editorSave").addEventListener("click", commitEditor);
@@ -1398,7 +1507,7 @@ function init(){
     if(e.target.id === "editorOverlay") closeEditor();
   });
   document.addEventListener("keydown", e => {
-    if(e.key === "Escape") closeEditor();
+    if(e.key === "Escape"){ closeEditor(); closeLock(); }
     if(e.key === "Enter" && (e.metaKey || e.ctrlKey) && editing) commitEditor();
   });
 }

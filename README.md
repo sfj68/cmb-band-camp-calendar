@@ -25,9 +25,12 @@ needed — nothing here starts with an underscore.
 - **Day navigation** — prev/next buttons and a day dropdown.
 - **Track toggles** — show or hide Drumline, Guard, Winds. Leadership is a separate
   calendar, off by default.
-- **Click any block to edit it** — name, day, start and end time, details, and which
-  tracks it applies to. **+ New Event** adds one from scratch; **Delete** removes it.
-  Changes save to `localStorage` in that browser only — nothing syncs between viewers.
+- **Edit Calendar** unlocks editing with a password (default `cyclone2026`). Until then
+  the page is view-only.
+- **Once unlocked, click any block to edit it** — name, day, start and end time, details,
+  and which tracks it applies to. **+ New Event** adds one from scratch; **Delete**
+  removes it. Changes save to `localStorage` in that browser only — nothing syncs
+  between viewers.
 - **Reset to Original** clears every change and restores the published schedule.
 - **Print** emits all eight days, one per page, at 8.5×11.
 
@@ -92,6 +95,28 @@ A few consequences are worth knowing before editing this file:
   would silently revert on reload.
 
 - The print stylesheet pins **portrait**; a 7 AM–11 PM grid does not fit landscape.
+
+### The edit password is a guard, not a lock
+
+**It is not security, and it is not meant to be.** This is a public static page, so
+anyone can read the hash in the source or flip the flag in devtools. What it buys is
+that a viewer cannot change the schedule by misclicking.
+
+That trade is acceptable here only because edits never leave the viewer's own browser.
+Nobody can alter what anyone else sees, however they get past the prompt. Do not reuse a
+password that matters anywhere else.
+
+The default is `cyclone2026`. Only the SHA-256 digest is stored, in
+`EDIT_PASSWORD_SHA256`. To change it, run this in the browser console and paste the
+result over that constant:
+
+```js
+crypto.subtle.digest("SHA-256", new TextEncoder().encode("newpassword"))
+  .then(b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join(""))
+```
+
+Unlocking lasts for the browser-tab session, so a reload while working does not re-prompt;
+closing the tab re-locks. **Done Editing** locks it again immediately.
 
 ### Edits live in an overlay, not in the schedule
 
