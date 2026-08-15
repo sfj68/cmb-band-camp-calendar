@@ -30,7 +30,10 @@
        mean this stays aligned at any width, including on the printed page. */
     --axis-w: 72px;
     --col-scale: 1.6666666667;   /* 5 / visible-column-count */
-    --grid-h: 896px;             /* 16h x 0.933 px-per-min, matching the original density */
+    /* Baseline 16h x 0.933 px-per-min, matching the original density. JS grows
+       this to fill the viewport so the grid reaches the bottom of the screen
+       instead of stopping short; it never shrinks below the baseline. */
+    --grid-h: 896px;
   }
   html{color-scheme: light only;}
   *{box-sizing:border-box;}
@@ -1041,6 +1044,32 @@ function rebuildEvents(){
   schedulePostRender();
 }
 
+// Size the 7 AM–11 PM grid to the window so its bottom lands just above the
+// footer: it grows to fill a tall screen and shrinks to fit a short one, so a
+// whole camp day is visible without scrolling. The floor is the point below
+// which blocks stop being readable even after the fit-the-text pass has done
+// what it can; past that the grid keeps its density and the page scrolls.
+// 620px is where the densest blocks — Thursday's four-station winds rotation and
+// Friday's 20-minute bus calls — start losing text even at the smallest type the
+// fit pass will use. 640 leaves a little margin for font differences.
+const GRID_MIN_H = 640;
+const GRID_MAX_H = 2400;
+const CAL_CHROME_H = 46;  // day-name row plus the container's borders
+
+function fitGridHeight(){
+  const pane = document.getElementById("pane-" + currentDay);
+  const scroll = pane && pane.querySelector(".cal-scroll");
+  if(!scroll) return;
+  // Distance from the top of the document to the top of the calendar, so the
+  // measurement does not depend on how far the page happens to be scrolled.
+  const calTop = scroll.getBoundingClientRect().top + window.scrollY;
+  const footer = document.querySelector("footer");
+  const reserve = (footer ? footer.offsetHeight : 30) + 28;
+  const target = window.innerHeight - calTop - reserve - CAL_CHROME_H;
+  const height = Math.max(GRID_MIN_H, Math.min(GRID_MAX_H, Math.round(target)));
+  document.documentElement.style.setProperty("--grid-h", height + "px");
+}
+
 // Toast UI renders through preact, so the DOM is not final on the next frame.
 // The post-render pass is idempotent, so run it a few times as layout settles
 // and let the last run win rather than trying to guess the right moment.
@@ -1232,6 +1261,9 @@ function showDay(i){
   document.getElementById("nextDay").disabled = currentDay === DAYS.length - 1;
   // The pane was parked off-screen; make it re-measure now that it is in flow.
   calendars[currentDay].render();
+  // Day titles and notes wrap to different heights, which moves where the grid
+  // starts, so the fit is recomputed whenever the visible day changes.
+  fitGridHeight();
   schedulePostRender();
 }
 
@@ -1470,12 +1502,26 @@ function init(){
   // fit-the-text pass has to run again with print media applied. Inside a
   // matchMedia('print') callback the computed styles already reflect print;
   // beforeprint/afterprint are belt and braces for browsers that skip it.
+  // The viewport fit writes --grid-h inline on :root, which would outrank the
+  // shorter height the print stylesheet wants. Drop it while printing and put
+  // it back afterwards.
   const printMQ = window.matchMedia("print");
-  const onPrintChange = () => paintHeaders(visibleColumns());
+  const enterPrint = () => {
+    document.documentElement.style.removeProperty("--grid-h");
+    paintHeaders(visibleColumns());
+  };
+  const leavePrint = () => { fitGridHeight(); schedulePostRender(); };
+  const onPrintChange = () => (printMQ.matches ? enterPrint() : leavePrint());
   if(printMQ.addEventListener) printMQ.addEventListener("change", onPrintChange);
   else if(printMQ.addListener) printMQ.addListener(onPrintChange);
-  window.addEventListener("beforeprint", onPrintChange);
-  window.addEventListener("afterprint", () => schedulePostRender());
+  window.addEventListener("beforeprint", enterPrint);
+  window.addEventListener("afterprint", leavePrint);
+
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { fitGridHeight(); schedulePostRender(); }, 150);
+  });
   document.getElementById("btnReset").addEventListener("click", () => {
     if(confirm("Reset all edits and restore the original schedule text? This cannot be undone.")){
       clearEdits();

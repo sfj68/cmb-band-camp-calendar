@@ -87,6 +87,14 @@ A few consequences are worth knowing before editing this file:
 - **Block heights are set as percentages.** The print stylesheet shortens the grid, and
   pixel heights would overflow into the block below.
 
+- **The grid is sized to the window**, growing on a tall screen and shrinking on a short
+  one so the day ends just above the footer rather than stopping short. It will not go
+  below 640px for the 7 AM–11 PM span: past that the densest blocks (Thursday's
+  four-station winds rotation, Friday's 20-minute bus calls) start losing text even at
+  the smallest type the fit pass will use, so the grid keeps its density and the page
+  scrolls instead. Because the fit writes `--grid-h` inline on `:root`, it is cleared
+  while printing so the print stylesheet's shorter grid can win.
+
 - **No true black anywhere.** Dark text is a deep cardinal (`--dark: #4A1220`), because
   near-black on gold reads as the wrong school's colours. It holds 9.7:1 contrast on
   gold and 15:1 on white. Neutral greys are warmed to `--muted` for the same reason.
